@@ -33,7 +33,13 @@ Solo se recuerdan en el navegador las reglas y decisiones del universo (exportab
 | Pistas de país | `AGR_1252` | Sociedad / centro / org. de ventas de cada rol |
 | | `USR05` | Parámetros organizativos del usuario (`BUK`, `VKO`, `WRK`, `CAC`…) |
 | | Lista de referencia | Usuarios UY/CL de RR. HH. o lista propia |
+| Estructura de roles | `AGR_DEFINE` | Catálogo de roles, descripción breve, rol padre (derivados), creación/modificación |
+| | `AGR_AGRS` | Roles simples de cada rol compuesto (muestra "vía compuesto" en la ficha) |
+| | `AGR_FLAGS` | Atributos `COLL_AGR` (compuesto) y `OBSOLETE` (obsoleto) |
+| | `AGR_PROF` | Perfil generado por cada rol: separa con certeza perfiles de roles y perfiles manuales |
+| | `AGR_TEXTS` (opcional) | Descripciones que falten en AGR_DEFINE |
 | Complementos | `UST04` | Perfiles asignados directamente (`SAP_ALL`, `SAP_NEW`, manuales) |
+| | `USREFUS` | Usuarios de referencia (heredan permisos sin figurar en roles) y alias |
 | | `USR21` + `ADRP` | Nombre de cada usuario |
 
 `ADRC` no se usa: en Scienza todos los usuarios comparten la misma dirección de empresa, así que no indica país.
