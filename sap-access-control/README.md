@@ -1,5 +1,8 @@
 # SAP Access Control | Scienza
 
+> **Versión en uso: [`apps-script/`](apps-script/)** (un solo archivo HTML, publicable con Google Apps Script).
+> Lo que sigue describe la versión React inicial, que queda como referencia.
+
 Aplicación web de consulta y análisis para obtener una radiografía de los accesos **actuales** en SAP S/4HANA
 productivo de Scienza Uruguay y Chile (etapa 1 del documento base: [`docs/Documento_Base.md`](docs/Documento_Base.md)).
 

@@ -1,0 +1,9 @@
+# Este repositorio es público: nunca subir extracciones reales de SAP ni de RR. HH.
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.txt
+!**/requirements.txt
+datos/
+extracciones/

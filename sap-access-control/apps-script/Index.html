@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAP Access Control | Scienza</title>
+<!-- Librerías de lectura de archivos (solo se usan en el navegador; ningún dato sale del equipo). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  color-scheme: light dark;
+  --surface: #fcfcfb; --surface-2: #f1f1ee; --page: #f6f7f5;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #6f6e69;
+  --grid: #e1e0d9; --base: #c3c2b7; --border: rgba(11,11,11,.1);
+  --accent: #2a78d6; --accent-soft: rgba(42,120,214,.1);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b;
+  --uy: #2a78d6; --cl: #eb6834; --ar: #8a8983;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #1a1a19; --surface-2: #232321; --page: #121416;
+    --text: #fff; --text-2: #c3c2b7; --muted: #a09f98;
+    --grid: #2c2c2a; --base: #383835; --border: rgba(255,255,255,.1);
+    --accent: #3987e5; --accent-soft: rgba(57,135,229,.16);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --uy: #3987e5; --cl: #d95926; --ar: #8a8983;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #1a1a19; --surface-2: #232321; --page: #121416;
+  --text: #fff; --text-2: #c3c2b7; --muted: #a09f98;
+  --grid: #2c2c2a; --base: #383835; --border: rgba(255,255,255,.1);
+  --accent: #3987e5; --accent-soft: rgba(57,135,229,.16);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --uy: #3987e5; --cl: #d95926; --ar: #8a8983;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+header.app { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; position: sticky; top: 0; z-index: 5; }
+header.app .marca b { font-size: 15px; display: block; }
+header.app .marca span { font-size: 12px; color: var(--muted); }
+nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+nav.tabs button { border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; cursor: pointer; color: var(--text-2); }
+nav.tabs button.activo { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+nav.tabs button .paso { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; background: var(--surface-2); margin-right: 6px; }
+nav.tabs button.activo .paso { background: var(--accent); color: #fff; }
+main { max-width: 1400px; margin: 0 auto; padding: 20px 16px 60px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 0 0 10px; }
+h3 { font-size: 14px; margin: 14px 0 6px; }
+.sub { color: var(--text-2); margin: 0 0 16px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+.card-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.card-h h2 { margin: 0; }
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.g6 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.t2 { color: var(--text-2); }
+.muted { color: var(--muted); }
+.peq { font-size: 12px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+.campo { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-height: 34px; }
+.campo:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 6px 12px; min-height: 34px; cursor: pointer; font-weight: 500; }
+.btn:hover { background: var(--surface-2); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.prim { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.peligro { color: var(--crit); }
+.btn.mini { min-height: 26px; padding: 2px 8px; font-size: 12px; }
+.fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.stat .e { font-size: 13px; color: var(--text-2); }
+.stat .v { font-size: 28px; font-weight: 600; line-height: 1.2; margin-top: 2px; }
+.stat .d { font-size: 12px; color: var(--muted); margin-top: 2px; }
+button.stat { text-align: left; cursor: pointer; width: 100%; }
+button.stat:hover { border-color: var(--accent); }
+.tabla-wrap { overflow: auto; max-height: 68vh; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.t th { text-align: left; font-weight: 600; color: var(--text-2); border-bottom: 1px solid var(--base); padding: 8px 10px; white-space: nowrap; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+table.t td { border-bottom: 1px solid var(--grid); padding: 6px 10px; vertical-align: top; }
+table.t tbody tr:hover td { background: var(--surface-2); }
+table.t th.ord { cursor: pointer; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tag { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; border-radius: 6px; padding: 1px 6px; font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.tag i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--base); }
+.tag.ok i { background: var(--good); } .tag.warn i { background: var(--warn); } .tag.crit i { background: var(--crit); } .tag.acc i { background: var(--accent); }
+.tag.uy i { background: var(--uy); } .tag.cl i { background: var(--cl); } .tag.ar i { background: var(--ar); }
+.aviso { border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px 12px; background: var(--surface); margin-bottom: 12px; }
+.aviso.warn { border-left-color: var(--warn); } .aviso.crit { border-left-color: var(--crit); } .aviso.ok { border-left-color: var(--good); }
+.aviso b { display: block; margin-bottom: 2px; }
+.zona { border: 1.5px dashed var(--base); border-radius: 12px; padding: 14px; background: var(--surface); }
+.zona.cargada { border-style: solid; border-color: var(--good); }
+.zona.arrastrando { border-color: var(--accent); background: var(--accent-soft); }
+.barra { display: flex; gap: 2px; height: 12px; border-radius: 4px; overflow: hidden; }
+.barra div { min-width: 3px; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--text-2); margin-top: 8px; }
+.leyenda span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+.sev { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.sev b { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; color: #fff; font-size: 9px; align-items: center; justify-content: center; }
+.sev.alta b { background: var(--crit); } .sev.media b { background: var(--serious); } .sev.info b { background: var(--accent); }
+a.link, button.link { color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none; }
+a.link:hover, button.link:hover { text-decoration: underline; }
+.pag { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-2); margin-top: 8px; }
+.cajon-fondo { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 20; }
+.cajon { position: fixed; top: 0; right: 0; bottom: 0; width: min(720px, 100vw); background: var(--page); z-index: 21; overflow: auto; padding: 20px 16px; box-shadow: -8px 0 24px rgba(0,0,0,.2); }
+dl.datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; margin: 0; }
+dl.datos dt { font-size: 12px; color: var(--muted); }
+dl.datos dd { margin: 2px 0 0; word-break: break-word; }
+details summary { cursor: pointer; }
+.oculto { display: none !important; }
+.banda-demo { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--warn); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; }
+@media (max-width: 640px) { header.app { position: static; } .stat .v { font-size: 24px; } }
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="marca"><b>SAP Access Control</b><span>Scienza · Uruguay y Chile</span></div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="cargar"><span class="paso">1</span>Cargar archivos</button>
+    <button data-tab="universo"><span class="paso">2</span>Definir universo</button>
+    <button data-tab="analisis"><span class="paso">3</span>Análisis</button>
+    <button data-tab="registro"><span class="paso">i</span>Registro y ayuda</button>
+  </nav>
+</header>
+<main id="app"></main>
+<div id="cajon-raiz"></div>
+
+<script>
+'use strict';
+// =============================================================================
+// SAP Access Control | Scienza — versión HTML única.
+// Funciona abriendo este archivo en el navegador o publicado con Apps Script
+// (HtmlService). Los archivos se procesan en memoria en el navegador; solo
+// la configuración del universo (reglas y decisiones) se recuerda en este
+// navegador, y se puede exportar/importar como archivo.
+// =============================================================================
+
+// ---------------------------------------------------------------- utilidades
+const h = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const n = (x) => Number(x).toLocaleString('es-UY');
+const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+const fmtFecha = (iso) => { if (!iso) return '—'; if (iso === '9999-12-31') return 'Sin límite'; const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
+const dias = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+const PAISES = { UY: 'Uruguay', CL: 'Chile', AR: 'Argentina', OTRO: 'Otro país' };
+
+function guardarLocal(clave, valor) { try { localStorage.setItem(clave, JSON.stringify(valor)); } catch (e) { /* almacenamiento no disponible */ } }
+function leerLocal(clave, defecto) { try { const v = localStorage.getItem(clave); return v ? JSON.parse(v) : defecto; } catch (e) { return defecto; } }
+
+function descargar(nombre, contenido, tipo) {
+  const url = URL.createObjectURL(new Blob([contenido], { type: tipo || 'text/plain;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function descargarCsv(nombre, cab, filas) {
+  const esc = (v) => { const s = v == null ? '' : String(v); return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  descargar(nombre, '﻿' + [cab, ...filas].map((f) => f.map(esc).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+}
+
+// ------------------------------------------------------- interpretación SAP
+function iso(y, m, d) {
+  if (y < 1900 || y > 9999 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const f = new Date(Date.UTC(y, m - 1, d));
+  if (f.getUTCMonth() !== m - 1) return null;
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+/** Devuelve {v: 'AAAA-MM-DD'|null, mal: bool}. Vacío y 00000000 = sin dato. */
+function leerFecha(c, orden) {
+  if (c == null) return { v: null, mal: false };
+  if (c instanceof Date) return isNaN(c) ? { v: null, mal: true } : { v: iso(c.getFullYear(), c.getMonth() + 1, c.getDate()), mal: false };
+  if (typeof c === 'number') {
+    if (c === 0) return { v: null, mal: false };
+    if (c >= 19000101 && c <= 99991231) { const s = String(Math.trunc(c)); const v = iso(+s.slice(0, 4), +s.slice(4, 6), +s.slice(6, 8)); return { v, mal: !v }; }
+    if (c >= 1 && c <= 2958465) { const f = new Date(Math.round((c - 25569) * 86400000)); const v = iso(f.getUTCFullYear(), f.getUTCMonth() + 1, f.getUTCDate()); return { v, mal: !v }; }
+    return { v: null, mal: true };
+  }
+  const s = String(c).trim();
+  if (['', '0', '00000000', '00.00.0000', '00/00/0000', '0000-00-00'].includes(s)) return { v: null, mal: false };
+  let m = /^(\d{4})(\d{2})(\d{2})$/.exec(s);
+  if (m) { const v = iso(+m[1], +m[2], +m[3]); return { v, mal: !v }; }
+  m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(s);
+  if (m) { const v = iso(+m[1], +m[2], +m[3]); return { v, mal: !v }; }
+  m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/.exec(s);
+  if (m) { const diaPrimero = s.includes('.') || orden !== 'MDY'; const v = diaPrimero ? iso(+m[3], +m[2], +m[1]) : iso(+m[3], +m[1], +m[2]); return { v, mal: !v }; }
+  if (/^\d+(\.\d+)?$/.test(s)) return leerFecha(Number(s), orden);
+  return { v: null, mal: true };
+}
+function ordenFechas(celdas) {
+  let dmy = false, mdy = false;
+  for (const c of celdas) {
+    if (typeof c !== 'string') continue;
+    const m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/.exec(c.trim());
+    if (!m) continue;
+    if (+m[1] > 12) dmy = true;
+    if (+m[2] > 12) mdy = true;
+  }
+  return { orden: mdy && !dmy ? 'MDY' : 'DMY', conflicto: dmy && mdy };
+}
+function leerHora(c) {
+  if (c == null || c === '') return null;
+  const f = (hh, mi, se) => (hh > 23 || mi > 59 || se > 59) ? null : [hh, mi, se].map((x) => String(x).padStart(2, '0')).join(':');
+  if (typeof c === 'number') {
+    if (c > 0 && c < 1) { const t = Math.round(c * 86400); return f(Math.floor(t / 3600), Math.floor(t % 3600 / 60), t % 60); }
+    return leerHora(String(Math.trunc(c)).padStart(6, '0'));
+  }
+  const s = String(c).trim();
+  let m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(s);
+  if (m) return f(+m[1], +m[2], +(m[3] || 0));
+  m = /^(\d{2})(\d{2})(\d{2})$/.exec(s.padStart(6, '0'));
+  return m ? f(+m[1], +m[2], +m[3]) : null;
+}
+const txt = (c) => c == null ? '' : String(c).trim();
+const usuario = (c) => txt(c).toUpperCase();
+
+const TIPOS = { A: 'Diálogo', B: 'Sistema', C: 'Comunicación', L: 'Referencia', S: 'Servicio' };
+const BITS_UFLAG = [[32, 'Bloqueo global por administrador (CUA)'], [64, 'Bloqueo local por administrador'], [128, 'Bloqueo por intentos fallidos de contraseña']];
+function motivosBloqueo(u) {
+  if (!u) return [];
+  const r = []; let resto = u;
+  for (const [b, e] of BITS_UFLAG) if (u & b) { r.push(e); resto &= ~b; }
+  if (resto) r.push(`Indicador no reconocido (${resto})`);
+  return r;
+}
+function vigencia(desde, hasta, ref) {
+  if (desde && desde > ref) return 'futura';
+  if (hasta && hasta !== '9999-12-31' && hasta < ref) return 'vencida';
+  return 'vigente';
+}
+function leerPaises(c) {
+  const s = norm(c).toUpperCase();
+  if (!s) return [];
+  if (/AMBOS|UY CL|CL UY|UY Y CL/.test(s)) return ['UY', 'CL'];
+  const r = [];
+  if (/\bUY\b|URUGUAY|\bURY\b/.test(s)) r.push('UY');
+  if (/\bCL\b|CHILE|\bCHL\b/.test(s)) r.push('CL');
+  if (/\bAR\b|ARGENTINA|\bARG\b/.test(s)) r.push('AR');
+  return r;
+}
+
+// ------------------------------------------------------------------ fuentes
+// Encabezados reconocidos: nombre técnico o etiqueta de SE16N (es/en/de).
+// El mapeo siempre se puede corregir en pantalla.
+const FUENTES = {
+  USR02: {
+    titulo: 'USR02 — Cuentas de usuario', obligatoria: true,
+    ayuda: 'SE16N → USR02. Campos: BNAME, USTYP, UFLAG, GLTGV, GLTGB, TRDAT, LTIME, CLASS. Sin filtrar por país: el universo se define en el paso 2.',
+    campos: [
+      ['bname', 'BNAME — Usuario', true, ['bname', 'usuario', 'nombre de usuario', 'nombre usuario', 'user', 'user name', 'benutzer', 'benutzername']],
+      ['ustyp', 'USTYP — Tipo de usuario', false, ['ustyp', 'tipo de usuario', 'tipo usuario', 'user type', 'benutzertyp']],
+      ['uflag', 'UFLAG — Bloqueo', false, ['uflag', 'status bloqueo usuario', 'estado bloqueo usuario', 'bloqueo de usuario', 'bloqueo usuario', 'user lock status', 'lock status', 'benutzersperre', 'sperrkennzeichen']],
+      ['gltgv', 'GLTGV — Válido desde', false, ['gltgv', 'valido desde', 'usuario valido desde', 'valid from', 'gultig von']],
+      ['gltgb', 'GLTGB — Válido hasta', false, ['gltgb', 'valido hasta', 'usuario valido hasta', 'valid through', 'valid to', 'gultig bis']],
+      ['trdat', 'TRDAT — Último acceso', false, ['trdat', 'fecha ultima entrada', 'fecha de la ultima entrada', 'fecha de la ultima entrada al sistema', 'ultimo login', 'fecha ultimo login', 'fecha ultimo acceso', 'last logon date', 'last logon']],
+      ['ltime', 'LTIME — Hora último acceso', false, ['ltime', 'hora ultima entrada', 'hora de la ultima entrada', 'hora ultimo login', 'last logon time']],
+      ['clase', 'CLASS — Grupo de usuarios', false, ['class', 'grupo de usuarios', 'grupo usuarios', 'user group', 'benutzergruppe']],
+    ],
+  },
+  AGR_USERS: {
+    titulo: 'AGR_USERS — Asignaciones de roles', obligatoria: true,
+    ayuda: 'SE16N → AGR_USERS. Campos: UNAME, AGR_NAME, FROM_DAT, TO_DAT, COL_FLAG, ORG_FLAG. Incluí asignaciones vencidas.',
+    campos: [
+      ['uname', 'UNAME — Usuario', true, ['uname', 'usuario', 'nombre de usuario', 'user', 'user name', 'benutzer']],
+      ['agr', 'AGR_NAME — Rol', true, ['agr name', 'agrname', 'rol', 'nombre de rol', 'nombre del rol', 'role', 'role name', 'rolle']],
+      ['desde', 'FROM_DAT — Desde', false, ['from dat', 'fromdat', 'fecha inicio', 'fecha de inicio', 'valido desde', 'start date', 'valid from']],
+      ['hasta', 'TO_DAT — Hasta', false, ['to dat', 'todat', 'fecha fin', 'fecha de fin', 'valido hasta', 'end date', 'valid to']],
+      ['col', 'COL_FLAG — Rol compuesto', false, ['col flag', 'colflag', 'rol compuesto', 'indicador rol compuesto', 'composite role']],
+      ['org', 'ORG_FLAG — Origen', false, ['org flag', 'orgflag', 'asignacion indirecta', 'indirect assignment']],
+    ],
+  },
+  AGR_1252: {
+    titulo: 'AGR_1252 — Niveles organizativos (opcional)', obligatoria: false,
+    ayuda: 'SE16N → AGR_1252: valores de sociedad (BUKRS), centro (WERKS), org. de ventas (VKORG), etc. por rol. Es la pista más confiable para saber el país de un rol.',
+    campos: [
+      ['agr', 'AGR_NAME — Rol', true, ['agr name', 'agrname', 'rol', 'nombre de rol', 'role', 'role name']],
+      ['varbl', 'VARBL — Campo organizativo', true, ['varbl', 'variable', 'nivel organizativo', 'campo organizativo', 'variable de nivel organizativo', 'org level', 'organizational level']],
+      ['low', 'LOW — Valor desde', true, ['low', 'valor', 'valor desde', 'de valor', 'valor de', 'from', 'von']],
+      ['high', 'HIGH — Valor hasta', false, ['high', 'valor hasta', 'a valor', 'hasta valor', 'to', 'bis']],
+    ],
+  },
+  REF: {
+    titulo: 'Lista de referencia UY/CL (opcional)', obligatoria: false,
+    ayuda: 'Planilla de RR. HH. o lista armada a mano con los usuarios SAP de Uruguay y Chile. Columnas: usuario SAP y, si se tiene, país, nombre, área y estado.',
+    campos: [
+      ['usuario', 'Usuario SAP', true, ['usuario sap', 'usuario', 'user sap', 'sap user', 'bname', 'cuenta sap', 'id sap']],
+      ['pais', 'País', false, ['pais', 'pais de operacion', 'paises de operacion', 'opera en', 'country']],
+      ['nombre', 'Nombre', false, ['nombre', 'nombre completo', 'nombre y apellido', 'apellido y nombre', 'empleado', 'colaborador', 'full name']],
+      ['area', 'Área', false, ['area', 'departamento', 'gerencia', 'sector']],
+      ['estado', 'Estado', false, ['estado', 'vigente', 'activo', 'situacion', 'status']],
+    ],
+  },
+};
+const SENSIBLES = new Set(['bcode', 'passcode', 'pwdsaltedhash', 'codvn', 'codvc', 'codvs', 'ocod1', 'ocod2', 'ocod3', 'ocod4', 'ocod5', 'pwdhistory', 'security policy']);
+const esSensible = (enc) => { const x = norm(enc); return SENSIBLES.has(x) || /contrasena|password|passwort|kennwort|hash|pwd/.test(x); };
+function sugerirCampo(fuente, enc) { const x = norm(enc); const c = FUENTES[fuente].campos.find((c) => c[3].includes(x)); return c ? c[0] : null; }
+function puntaje(fuente, fila) { return new Set(fila.map((c) => sugerirCampo(fuente, txt(c))).filter(Boolean)).size; }
+
+// ------------------------------------------------------------------ lectura
+async function sha256(buf) {
+  if (!(window.crypto && crypto.subtle)) return 'no disponible';
+  const d = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+function decodificar(buf) {
+  try { return { t: new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^﻿/, ''), cod: 'UTF-8' }; }
+  catch (e) { return { t: new TextDecoder('windows-1252').decode(buf), cod: 'Windows-1252' }; }
+}
+function leerTexto(t) {
+  const lineas = t.split(/\r?\n/).filter((l) => l.trim() && !/^[-|\s]+$/.test(l)).slice(0, 30);
+  let delim = ',', mejor = -1;
+  for (const d of ['\t', ';', '|', ',']) {
+    const cs = lineas.map((l) => l.split(d).length - 1).filter((c) => c > 0);
+    if (!cs.length) continue;
+    const frec = {}; cs.forEach((c) => frec[c] = (frec[c] || 0) + 1);
+    const moda = +Object.keys(frec).sort((a, b) => frec[b] - frec[a])[0];
+    const p = frec[moda] * 100 + moda;
+    if (p > mejor) { mejor = p; delim = d; }
+  }
+  let filas = Papa.parse(t, { delimiter: delim, skipEmptyLines: true }).data.filter((f) => !f.every((c) => /^[-\s]*$/.test(c)));
+  if (delim === '|') filas = filas.map((f) => { let i = 0, j = f.length; if (txt(f[0]) === '') i = 1; if (j > i && txt(f[j - 1]) === '') j--; return f.slice(i, j); });
+  return filas.map((f) => f.map((c) => c.trim()));
+}
+async function leerArchivo(file) {
+  const buf = await file.arrayBuffer();
+  const hash = await sha256(buf);
+  const nombre = file.name.toLowerCase();
+  const adv = [];
+  let hojas;
+  if (/\.(xlsx|xlsm|xls)$/.test(nombre)) {
+    // raw: las fechas llegan como número de serie de Excel y se interpretan sin depender de la zona horaria.
+    const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+    hojas = wb.SheetNames.map((s) => ({ nombre: s, filas: XLSX.utils.sheet_to_json(wb.Sheets[s], { header: 1, raw: true, defval: null }) }));
+  } else {
+    const { t, cod } = decodificar(buf);
+    if (cod !== 'UTF-8') adv.push(`Texto leído como ${cod}.`);
+    hojas = [{ nombre: 'Texto', filas: leerTexto(t) }];
+  }
+  return { nombre: file.name, tamano: file.size, sha: hash, hojas, adv };
+}
+function filaEncabezado(fuente, filas) {
+  let mejor = -1, p = 0;
+  for (let i = 0; i < Math.min(filas.length, 25); i++) { const q = puntaje(fuente, filas[i] || []); if (q > p) { p = q; mejor = i; } }
+  return mejor >= 0 ? mejor : Math.max(0, filas.findIndex((f) => (f || []).some((c) => txt(c) !== '')));
+}
+function armarTabla(hoja, fe) {
+  const vistos = {};
+  const enc = (hoja.filas[fe] || []).map((c, i) => { let x = txt(c) || `Columna ${i + 1}`; vistos[x] = (vistos[x] || 0) + 1; return vistos[x] > 1 ? `${x} (${vistos[x]})` : x; });
+  const filas = hoja.filas.slice(fe + 1).filter((f) => f && f.some((c) => txt(c) !== ''));
+  return { enc, filas, fe };
+}
+function mapeoSugerido(fuente, enc) {
+  const m = {}, usados = new Set();
+  for (const e of enc) { if (esSensible(e)) continue; const c = sugerirCampo(fuente, e); if (c && !usados.has(c)) { m[e] = c; usados.add(c); } }
+  return m;
+}
+
+/** Convierte filas en registros. No toca el estado global. */
+function procesar(fuente, tabla, mapeo) {
+  const idx = {};
+  tabla.enc.forEach((e, i) => { if (!esSensible(e) && mapeo[e]) idx[mapeo[e]] = i; });
+  for (const [c, et, req] of FUENTES[fuente].campos) if (req && idx[c] === undefined) throw new Error(`Falta indicar la columna obligatoria: ${et}.`);
+  const val = (f, c) => idx[c] === undefined ? null : f[idx[c]];
+  const sensibles = tabla.enc.filter(esSensible);
+  const adv = [];
+  if (sensibles.length) adv.push(`El archivo traía columnas de credenciales (${sensibles.join(', ')}). Se descartaron y no se usan. Conviene borrar el archivo original y re-exportar sin esos campos.`);
+  const ordenes = {}, malas = {};
+  const fechasDe = { USR02: ['gltgv', 'gltgb', 'trdat'], AGR_USERS: ['desde', 'hasta'] }[fuente] || [];
+  for (const c of fechasDe) if (idx[c] !== undefined) { const o = ordenFechas(tabla.filas.map((f) => val(f, c))); ordenes[c] = o.orden; if (o.conflicto) adv.push(`La columna ${c.toUpperCase()} mezcla día/mes y mes/día; se tomó día/mes.`); }
+  const fecha = (f, c) => { const r = leerFecha(val(f, c), ordenes[c]); if (r.mal) malas[c] = (malas[c] || 0) + 1; return r.v; };
+  const regs = [], claves = new Set(), rech = [];
+  let duplicadas = 0, numericos = 0;
+  tabla.filas.forEach((f, i) => {
+    const nf = tabla.fe + 2 + i;
+    if (fuente === 'USR02') {
+      const bname = usuario(val(f, 'bname'));
+      if (!bname) return rech.push(`Fila ${nf}: BNAME vacío`);
+      if (claves.has(bname)) return duplicadas++;
+      claves.add(bname);
+      if (/^\d+$/.test(bname)) numericos++;
+      const uf = txt(val(f, 'uflag'));
+      const trdat = fecha(f, 'trdat');
+      regs.push({ bname, ustyp: txt(val(f, 'ustyp')).toUpperCase(), uflag: /^\d+$/.test(uf) ? +uf : (uf ? null : 0), uflagTxt: uf,
+        gltgv: fecha(f, 'gltgv'), gltgb: fecha(f, 'gltgb'), trdat, ltime: trdat ? leerHora(val(f, 'ltime')) : null, clase: txt(val(f, 'clase')).toUpperCase() });
+    } else if (fuente === 'AGR_USERS') {
+      const uname = usuario(val(f, 'uname')), agr = txt(val(f, 'agr')).toUpperCase();
+      if (!uname || !agr) return rech.push(`Fila ${nf}: usuario o rol vacío`);
+      const desde = fecha(f, 'desde'), hasta = fecha(f, 'hasta');
+      const k = `${uname}|${agr}|${desde}|${hasta}`;
+      if (claves.has(k)) return duplicadas++;
+      claves.add(k);
+      regs.push({ uname, agr, desde, hasta, col: txt(val(f, 'col')).toUpperCase(), org: txt(val(f, 'org')).toUpperCase() });
+    } else if (fuente === 'AGR_1252') {
+      const agr = txt(val(f, 'agr')).toUpperCase(), varbl = txt(val(f, 'varbl')).toUpperCase().replace(/^\$/, ''), low = txt(val(f, 'low')).toUpperCase();
+      if (!agr || !varbl || !low) return rech.push(`Fila ${nf}: rol, campo o valor vacío`);
+      const k = `${agr}|${varbl}|${low}|${txt(val(f, 'high'))}`;
+      if (claves.has(k)) return duplicadas++;
+      claves.add(k);
+      regs.push({ agr, varbl, low, high: txt(val(f, 'high')).toUpperCase() });
+    } else {
+      const usuarios = txt(val(f, 'usuario')).split(/[;,/\s]+/).map(usuario).filter(Boolean);
+      if (!usuarios.length) return rech.push(`Fila ${nf}: sin usuario SAP`);
+      for (const u of usuarios) {
+        if (claves.has(u)) { duplicadas++; continue; }
+        claves.add(u);
+        regs.push({ usuario: u, paises: leerPaises(val(f, 'pais')), paisTxt: txt(val(f, 'pais')), nombre: txt(val(f, 'nombre')), area: txt(val(f, 'area')), estado: txt(val(f, 'estado')) });
+      }
+    }
+  });
+  for (const [c, k] of Object.entries(malas)) adv.push(`${k} fila(s) con ${c.toUpperCase()} no interpretable como fecha (quedó vacía).`);
+  if (numericos) adv.push(`${numericos} usuario(s) solo numéricos: verificar que Excel no haya quitado ceros a la izquierda.`);
+  if (duplicadas) adv.push(`${duplicadas} fila(s) duplicadas descartadas.`);
+  if (rech.length) adv.push(`${rech.length} fila(s) rechazadas (p. ej.: ${rech.slice(0, 3).join('; ')}).`);
+  if (fuente === 'AGR_USERS' && idx.hasta === undefined) adv.push('Sin TO_DAT no se pueden distinguir asignaciones vencidas.');
+  return { regs, leidas: tabla.filas.length, rechazadas: rech.length, duplicadas, adv, sensibles };
+}
+
+// -------------------------------------------------------------------- estado
+const CLAVE_CONF = 'sapac.scienza.universo.v1';
+const S = {
+  tab: 'cargar',
+  fechaRef: hoyISO(),
+  demo: false,
+  datos: { USR02: null, AGR_USERS: null, AGR_1252: null, REF: null }, // {regs, meta}
+  pendiente: null, // archivo leído esperando confirmación de mapeo
+  conf: Object.assign({ reglas: [], decisiones: {}, excluirTecnicas: true, sugeridasAplicadas: false, umbralRoles: 25, diasSinAcceso: 90 }, leerLocal(CLAVE_CONF, {})),
+  ui: { uFiltro: 'pendientes', uTexto: '', uPag: 0, uSel: new Set(), tokTexto: '', tokPag: 0, tokSolo: 'todos', orgCampo: '',
+        aFiltro: '', aTexto: '', aPag: 0, aOrden: ['bname', 1], rTexto: '', rPag: 0, rOrden: ['enUniverso', -1] },
+  calc: null,
+};
+const guardarConf = () => guardarLocal(CLAVE_CONF, S.conf);
+
+// --------------------------------------------------------- cálculo universo
+function tokensDe(agr) { return agr.split(/[^A-Z0-9]+/).filter((t) => t.length >= 2 && !/^\d+$/.test(t)); }
+
+function calcular() {
+  const ref = S.fechaRef;
+  const usr = S.datos.USR02 ? S.datos.USR02.regs : [];
+  const asig = S.datos.AGR_USERS ? S.datos.AGR_USERS.regs : [];
+  const org = S.datos.AGR_1252 ? S.datos.AGR_1252.regs : [];
+  const refl = S.datos.REF ? S.datos.REF.regs : [];
+  const reglas = S.conf.reglas;
+
+  // Índices de reglas
+  const rTok = {}, rCont = [], rClase = {}, rOrg = {};
+  for (const r of reglas) {
+    if (r.tipo === 'token') rTok[r.valor] = r.pais;
+    else if (r.tipo === 'contiene') rCont.push(r);
+    else if (r.tipo === 'clase') rClase[r.valor] = r.pais;
+    else if (r.tipo === 'org') rOrg[`${r.campo}=${r.valor}`] = r.pais;
+  }
+  const orgPorRol = {};
+  for (const o of org) (orgPorRol[o.agr] = orgPorRol[o.agr] || []).push(o);
+
+  const cachePais = {};
+  const paisesDeRol = (agr) => {
+    if (cachePais[agr]) return cachePais[agr];
+    const p = {};
+    for (const t of tokensDe(agr)) if (rTok[t]) (p[rTok[t]] = p[rTok[t]] || []).push(`token ${t}`);
+    for (const r of rCont) if (agr.includes(r.valor)) (p[r.pais] = p[r.pais] || []).push(`contiene "${r.valor}"`);
+    for (const o of orgPorRol[agr] || []) { const k = `${o.varbl}=${o.low}`; if (rOrg[k]) (p[rOrg[k]] = p[rOrg[k]] || []).push(k); }
+    return (cachePais[agr] = p);
+  };
+
+  const refPorUsuario = {};
+  for (const r of refl) refPorUsuario[r.usuario] = r;
+
+  const asigPorUsuario = {};
+  for (const a of asig) {
+    const e = vigencia(a.desde, a.hasta, ref);
+    const x = Object.assign({}, a, { estado: e, porVencer: e === 'vigente' && a.hasta && a.hasta !== '9999-12-31' && dias(ref, a.hasta) <= 30 });
+    (asigPorUsuario[a.uname] = asigPorUsuario[a.uname] || []).push(x);
+  }
+
+  const cuentas = usr.map((u) => {
+    const roles = (asigPorUsuario[u.bname] || []).sort((a, b) => a.agr.localeCompare(b.agr));
+    const vig = roles.filter((r) => r.estado === 'vigente');
+    const base = vig.length ? vig : roles;
+    const ev = { UY: 0, CL: 0, AR: 0, OTRO: 0 }, motivosEv = {};
+    for (const r of base) {
+      const p = paisesDeRol(r.agr);
+      for (const c of Object.keys(p)) { ev[c]++; (motivosEv[c] = motivosEv[c] || []).push(r.agr); }
+    }
+    if (rClase[u.clase]) { ev[rClase[u.clase]] += 1; (motivosEv[rClase[u.clase]] = motivosEv[rClase[u.clase]] || []).push(`grupo ${u.clase}`); }
+    const enRef = refPorUsuario[u.bname];
+    const bloqueada = !!u.uflag;
+    const vigCuenta = vigencia(u.gltgv, u.gltgb, ref);
+    const tecnica = u.ustyp !== '' && u.ustyp !== 'A';
+
+    // Sugerencia
+    let sug, motivo;
+    const local = ev.UY + ev.CL > 0, externa = ev.AR + ev.OTRO > 0;
+    if (S.conf.excluirTecnicas && tecnica) { sug = 'excluir'; motivo = `Cuenta técnica (${TIPOS[u.ustyp] || u.ustyp})`; }
+    else if (enRef) { sug = 'incluir'; motivo = 'Está en la lista de referencia'; }
+    else if (local && !externa) { sug = 'incluir'; motivo = 'Solo pistas de UY/CL'; }
+    else if (!local && externa) { sug = 'excluir'; motivo = 'Solo pistas de otros países'; }
+    else if (local && externa) { sug = 'revisar'; motivo = 'Pistas mixtas'; }
+    else { sug = 'revisar'; motivo = roles.length ? 'Sin pistas de país' : 'Sin roles asignados'; }
+
+    const dec = S.conf.decisiones[u.bname];
+    const final = dec && dec.d ? dec.d : sug;
+    let paisSug = [];
+    if (enRef && enRef.paises.length) paisSug = enRef.paises.filter((p) => p === 'UY' || p === 'CL');
+    else paisSug = ['UY', 'CL'].filter((p) => ev[p] > 0);
+    const pais = dec && dec.pais ? dec.pais.split('+') : paisSug;
+
+    return {
+      ...u, roles, vigentes: [...new Set(vig.map((r) => r.agr))], ev, motivosEv, enRef, tecnica,
+      bloqueada, motivos: motivosBloqueo(u.uflag), vigCuenta, utilizable: !bloqueada && vigCuenta === 'vigente',
+      diasSinAcceso: u.trdat ? dias(u.trdat, ref) : null,
+      sug, motivo, manual: !!(dec && dec.d), final, pais, nota: dec ? dec.nota || '' : '',
+    };
+  });
+  const porNombre = {};
+  cuentas.forEach((c) => porNombre[c.bname] = c);
+  const universo = cuentas.filter((c) => c.final === 'incluir');
+  const enU = new Set(universo.map((c) => c.bname));
+
+  // Tokens de roles (para descubrir convenciones de nombres)
+  const tok = {};
+  for (const a of asig) {
+    for (const t of tokensDe(a.agr)) {
+      const x = tok[t] = tok[t] || { token: t, roles: new Set(), usuarios: new Set() };
+      x.roles.add(a.agr); x.usuarios.add(a.uname);
+    }
+  }
+  const tokens = Object.values(tok).map((x) => ({ token: x.token, roles: x.roles.size, usuarios: x.usuarios.size, ejemplos: [...x.roles].slice(0, 3), pais: rTok[x.token] || '' }))
+    .sort((a, b) => b.usuarios - a.usuarios || a.token.localeCompare(b.token));
+  const clases = {};
+  usr.forEach((u) => { const k = u.clase || ''; clases[k] = (clases[k] || 0) + 1; });
+  const orgVals = {};
+  for (const o of org) {
+    const k = `${o.varbl}=${o.low}`;
+    const x = orgVals[k] = orgVals[k] || { campo: o.varbl, valor: o.low, roles: new Set() };
+    x.roles.add(o.agr);
+  }
+
+  // Roles: vista inversa
+  const roles = {};
+  for (const c of cuentas) for (const r of c.roles) {
+    if (r.estado !== 'vigente') continue;
+    const x = roles[r.agr] = roles[r.agr] || { agr: r.agr, enUniverso: 0, uy: 0, cl: 0, fuera: 0, usuarios: [] };
+    if (enU.has(c.bname)) { x.enUniverso++; x.usuarios.push(c.bname); if (c.pais.includes('UY')) x.uy++; if (c.pais.includes('CL')) x.cl++; }
+    else x.fuera++;
+  }
+  const huerfanas = [...new Set(asig.filter((a) => !porNombre[a.uname]).map((a) => a.uname))];
+  S.calc = { cuentas, porNombre, universo, tokens, clases, orgVals: Object.values(orgVals), roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
+}
+
+// Sugerencias iniciales evidentes (se pueden quitar).
+function aplicarSugeridas() {
+  if (S.conf.sugeridasAplicadas || !S.datos.AGR_USERS) return;
+  const conocidos = { UY: 'UY', URU: 'UY', URY: 'UY', URUGUAY: 'UY', CL: 'CL', CHL: 'CL', CHILE: 'CL', AR: 'AR', ARG: 'AR', ARGENTINA: 'AR' };
+  const presentes = new Set();
+  for (const a of S.datos.AGR_USERS.regs) tokensDe(a.agr).forEach((t) => presentes.add(t));
+  // También prefijos de roles de cliente: ZUY, YCL, ZAR…
+  for (const t of presentes) { const m = /^[ZY](UY|CL|AR)$/.exec(t); if (m) conocidos[t] = m[1]; }
+  for (const [t, p] of Object.entries(conocidos)) if (presentes.has(t) && !S.conf.reglas.some((r) => r.tipo === 'token' && r.valor === t)) S.conf.reglas.push({ tipo: 'token', valor: t, pais: p, auto: true });
+  S.conf.sugeridasAplicadas = true;
+  guardarConf();
+}
+
+function setRegla(tipo, valor, pais, campo) {
+  S.conf.reglas = S.conf.reglas.filter((r) => !(r.tipo === tipo && r.valor === valor && (r.campo || '') === (campo || '')));
+  if (pais) S.conf.reglas.push({ tipo, valor, pais, campo: campo || undefined });
+  guardarConf();
+  recalcular();
+}
+
+// ------------------------------------------------------------- componentes
+const tagPais = (p) => `<span class="tag ${p.toLowerCase()}"><i></i>${p}</span>`;
+const tagSug = { incluir: '<span class="tag ok"><i></i>Incluir</span>', excluir: '<span class="tag"><i></i>Excluir</span>', revisar: '<span class="tag warn"><i></i>Revisar</span>' };
+function tagEstado(c) {
+  if (c.bloqueada) return `<span class="tag crit" title="${h(c.motivos.join(' · '))}"><i></i>Bloqueada</span>`;
+  if (c.vigCuenta !== 'vigente') return `<span class="tag warn"><i></i>Validez ${c.vigCuenta}</span>`;
+  return '<span class="tag ok"><i></i>Utilizable</span>';
+}
+function evidencia(c) {
+  const p = Object.entries(c.ev).filter(([, v]) => v > 0);
+  const t = p.map(([k, v]) => `<span class="tag ${k.toLowerCase()}" title="${h((c.motivosEv[k] || []).slice(0, 8).join(', '))}"><i></i>${k} ${v}</span>`).join(' ');
+  return (c.enRef ? '<span class="tag acc"><i></i>Lista ref.</span> ' : '') + (t || '<span class="muted">—</span>');
+}
+function stat(e, v, d, accion) {
+  const cont = `<div class="e">${h(e)}</div><div class="v">${typeof v === 'number' ? n(v) : h(v)}</div>${d ? `<div class="d">${h(d)}</div>` : ''}`;
+  return accion ? `<button class="stat" data-accion="${accion}">${cont}</button>` : `<div class="stat">${cont}</div>`;
+}
+function barra(partes) {
+  const tot = partes.reduce((a, p) => a + p[1], 0) || 1;
+  return `<div class="barra" role="img" aria-label="${h(partes.map((p) => `${p[0]}: ${p[1]}`).join(', '))}">${partes.filter((p) => p[1] > 0).map((p) => `<div title="${h(p[0])}: ${n(p[1])}" style="width:${p[1] / tot * 100}%;background:${p[2]}"></div>`).join('')}</div>
+  <div class="leyenda">${partes.map((p) => `<span style="--c:${p[2]}">${h(p[0])}: <b style="color:var(--text)">${n(p[1])}</b></span>`).join('')}</div>`;
+}
+function paginar(lista, pag, por) {
+  const total = Math.max(1, Math.ceil(lista.length / por));
+  const p = Math.min(pag, total - 1);
+  return { items: lista.slice(p * por, (p + 1) * por), p, total };
+}
+function pie(lista, pg, clave) {
+  return `<div class="pag"><span>${n(lista.length)} fila(s)</span>${pg.total > 1 ? `<span class="fila"><button class="btn mini" data-pag="${clave}" data-dir="-1" ${pg.p === 0 ? 'disabled' : ''}>Anterior</button> Página ${pg.p + 1} de ${pg.total} <button class="btn mini" data-pag="${clave}" data-dir="1" ${pg.p >= pg.total - 1 ? 'disabled' : ''}>Siguiente</button></span>` : ''}</div>`;
+}
+
+// ---------------------------------------------------------- vista: cargar
+function vistaCargar() {
+  const zonas = Object.entries(FUENTES).map(([f, def]) => {
+    const d = S.datos[f];
+    return `<div class="zona ${d ? 'cargada' : ''}" data-zona="${f}">
+      <div class="card-h"><b>${h(def.titulo)}</b>${d ? '<span class="tag ok"><i></i>Cargado</span>' : def.obligatoria ? '<span class="tag warn"><i></i>Necesario</span>' : '<span class="tag"><i></i>Opcional</span>'}</div>
+      <div class="t2 peq">${h(def.ayuda)}</div>
+      ${d ? `<div class="peq" style="margin-top:8px">${h(d.meta.archivo)} · <b>${n(d.regs.length)}</b> filas · ${d.meta.adv.length} advertencia(s)</div>` : ''}
+      <div class="fila" style="margin-top:10px">
+        <label class="btn">${d ? 'Reemplazar' : 'Elegir archivo'}<input type="file" class="oculto" data-archivo="${f}" accept=".xlsx,.xls,.xlsm,.csv,.txt,.tsv"></label>
+        ${d ? `<button class="btn mini peligro" data-accion="quitar" data-f="${f}">Quitar</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  return `
+  ${S.demo ? '<div class="banda-demo"><b>Datos de ejemplo ficticios.</b> <span class="t2">No provienen de SAP.</span></div>' : ''}
+  <h1>Cargar archivos</h1>
+  <p class="sub">Exportaciones de SE16N completas, <b>sin filtrar por país</b>: el universo Uruguay/Chile se define en el paso 2. Los archivos se procesan en este navegador y no se envían a ningún servidor.</p>
+  <div class="card">
+    <div class="fila">
+      <label>Fecha de extracción <input type="date" class="campo" id="fechaRef" value="${S.fechaRef}"></label>
+      <span class="t2 peq">Las vigencias (cuentas y roles) se evalúan contra esta fecha, no contra hoy.</span>
+    </div>
+  </div>
+  <div class="grid g2">${zonas}</div>
+  <div id="mapeo"></div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-h"><h2>¿Querés probar antes de exportar de SAP?</h2></div>
+    <p class="t2" style="margin:0 0 10px">Genera usuarios ficticios de Uruguay, Chile y Argentina para recorrer el proceso completo.</p>
+    <div class="fila"><button class="btn" data-accion="demo">Cargar ejemplo ficticio</button><button class="btn" data-accion="demo-archivos">Descargar archivos de ejemplo</button></div>
+  </div>
+  ${S.datos.USR02 && S.datos.AGR_USERS ? '<div class="fila"><button class="btn prim" data-tab-ir="universo">Siguiente: definir universo →</button></div>' : ''}`;
+}
+
+function vistaMapeo() {
+  const P = S.pendiente;
+  if (!P) return '';
+  const def = FUENTES[P.fuente];
+  const tabla = armarTabla(P.archivo.hojas[P.hoja], P.fe);
+  const usados = new Set(Object.values(P.mapeo));
+  const muestra = (i) => tabla.filas.slice(0, 3).map((f) => txt(f[i])).filter(Boolean).join(' · ');
+  let res = '';
+  if (P.error) res = `<div class="aviso crit"><b>No se pudo continuar</b>${h(P.error)}</div>`;
+  if (P.resultado) {
+    const r = P.resultado;
+    res += `<div class="grid g6" style="margin:12px 0">${stat('Filas leídas', r.leidas)}${stat('Aceptadas', r.regs.length)}${stat('Rechazadas', r.rechazadas)}${stat('Duplicadas', r.duplicadas)}</div>
+      ${r.adv.length ? `<div class="aviso warn"><b>Advertencias</b><ul style="margin:4px 0 0;padding-left:18px">${r.adv.map((a) => `<li>${h(a)}</li>`).join('')}</ul></div>` : '<div class="aviso ok">Sin advertencias.</div>'}
+      <button class="btn prim" data-accion="confirmar" ${r.regs.length ? '' : 'disabled'}>Confirmar (${n(r.regs.length)} filas)</button>`;
+  }
+  return `<div class="card" style="margin-top:16px">
+    <div class="card-h"><h2>Revisar columnas: ${h(def.titulo)}</h2><button class="btn" data-accion="cancelar-mapeo">Cancelar</button></div>
+    <div class="t2 peq">${h(P.archivo.nombre)} · ${n(tabla.filas.length)} filas de datos · <span class="mono">SHA-256 ${h(P.archivo.sha.slice(0, 16))}…</span></div>
+    <div class="fila" style="margin:10px 0">
+      ${P.archivo.hojas.length > 1 ? `<label>Hoja <select class="campo" id="mapeo-hoja">${P.archivo.hojas.map((x, i) => `<option value="${i}" ${i === P.hoja ? 'selected' : ''}>${h(x.nombre)}</option>`).join('')}</select></label>` : ''}
+      <label>Fila de encabezados <input type="number" min="1" class="campo" style="width:80px" id="mapeo-fe" value="${P.fe + 1}"></label>
+      <span class="t2 peq">Detectada automáticamente.</span>
+    </div>
+    <div class="tabla-wrap"><table class="t"><thead><tr><th>Columna del archivo</th><th>Ejemplos</th><th>Se usa como</th></tr></thead><tbody>
+    ${tabla.enc.map((e, i) => esSensible(e)
+      ? `<tr><td class="mono">${h(e)}</td><td>••••• (oculto)</td><td style="color:var(--crit)">Descartada: credenciales</td></tr>`
+      : `<tr><td class="mono">${h(e)}</td><td class="t2">${h(muestra(i)) || '—'}</td><td><select class="campo" data-mapeo="${h(e)}"><option value="">No usar</option>${def.campos.map((c) => `<option value="${c[0]}" ${P.mapeo[e] === c[0] ? 'selected' : ''} ${usados.has(c[0]) && P.mapeo[e] !== c[0] ? 'disabled' : ''}>${h(c[1])}${c[2] ? ' (obligatorio)' : ''}</option>`).join('')}</select></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="fila" style="margin-top:12px"><button class="btn" data-accion="validar">Validar</button></div>
+    ${res}
+  </div>`;
+}
+
+// -------------------------------------------------------- vista: universo
+function vistaUniverso() {
+  if (!S.datos.USR02 || !S.datos.AGR_USERS) return '<h1>Definir universo</h1><div class="aviso warn"><b>Faltan archivos</b>Cargá USR02 y AGR_USERS en el paso 1.</div>';
+  const C = S.calc, U = S.ui;
+  const cont = { incluir: 0, excluir: 0, revisar: 0 };
+  C.cuentas.forEach((c) => cont[c.final]++);
+  const manuales = C.cuentas.filter((c) => c.manual).length;
+
+  // --- pistas por tokens
+  let toks = C.tokens;
+  if (U.tokTexto) toks = toks.filter((t) => t.token.includes(U.tokTexto.toUpperCase()) || t.ejemplos.some((e) => e.includes(U.tokTexto.toUpperCase())));
+  if (U.tokSolo === 'asignados') toks = toks.filter((t) => t.pais);
+  const pgT = paginar(toks, U.tokPag, 25);
+  const selPais = (attrs, actual) => `<select class="campo" ${attrs}><option value="">—</option>${Object.entries(PAISES).map(([k, v]) => `<option value="${k}" ${actual === k ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+  const contiene = S.conf.reglas.filter((r) => r.tipo === 'contiene');
+
+  // --- org
+  let orgs = C.orgVals;
+  const camposOrg = [...new Set(orgs.map((o) => o.campo))].sort();
+  if (U.orgCampo) orgs = orgs.filter((o) => o.campo === U.orgCampo);
+  const reglaOrg = (o) => (S.conf.reglas.find((r) => r.tipo === 'org' && r.campo === o.campo && r.valor === o.valor) || {}).pais || '';
+
+  // --- resultado
+  let lista = C.cuentas;
+  const f = U.uFiltro;
+  if (f === 'pendientes') lista = lista.filter((c) => c.final === 'revisar');
+  else if (f === 'incluidos') lista = lista.filter((c) => c.final === 'incluir');
+  else if (f === 'excluidos') lista = lista.filter((c) => c.final === 'excluir');
+  else if (f === 'manuales') lista = lista.filter((c) => c.manual);
+  else if (f === 'sinpais') lista = lista.filter((c) => c.final === 'incluir' && !c.pais.length);
+  if (U.uTexto) { const t = U.uTexto.toUpperCase(); lista = lista.filter((c) => c.bname.includes(t) || c.clase.includes(t) || (c.enRef && c.enRef.nombre.toUpperCase().includes(t)) || c.vigentes.some((r) => r.includes(t))); }
+  const pgU = paginar(lista, U.uPag, 100);
+
+  return `
+  ${S.demo ? '<div class="banda-demo"><b>Datos de ejemplo ficticios.</b> <span class="t2">No provienen de SAP.</span></div>' : ''}
+  <h1>Definir universo</h1>
+  <p class="sub">USR02 trae todos los usuarios de SAP (incluido Argentina). Acá se decide cuáles forman parte del análisis. Las pistas proponen una sugerencia; la decisión final la tomás vos, cuenta por cuenta si hace falta. Todo queda guardado en este navegador y se puede exportar.</p>
+
+  <div class="grid g6">
+    ${stat('Cuentas en USR02', C.cuentas.length)}
+    ${stat('En el universo', cont.incluir, 'decisión final: incluir', 'u-incluidos')}
+    ${stat('Por revisar', cont.revisar, 'sin decisión', 'u-pendientes')}
+    ${stat('Excluidas', cont.excluir, '', 'u-excluidos')}
+    ${stat('Decididas a mano', manuales, '', 'u-manuales')}
+  </div>
+  <div class="card" style="margin-top:12px">${barra([['En el universo', cont.incluir, 'var(--s1)'], ['Por revisar', cont.revisar, 'var(--s4)'], ['Excluidas', cont.excluir, 'var(--base)']])}</div>
+
+  <div class="card">
+    <div class="card-h"><h2>A. Pistas en los nombres de roles</h2></div>
+    <p class="t2 peq" style="margin-top:0">Los nombres de roles se dividen en partes (separadas por _ - / etc.). Asigná país a las partes que lo indiquen. Las más comunes (UY, CL, AR, URU, CHILE…) se proponen solas si aparecen. Una cuenta toma las pistas de sus roles <b>vigentes</b>.</p>
+    <div class="fila" style="margin-bottom:8px">
+      <input class="campo" placeholder="Buscar parte o rol…" id="tokTexto" value="${h(U.tokTexto)}">
+      <select class="campo" id="tokSolo"><option value="todos" ${U.tokSolo === 'todos' ? 'selected' : ''}>Todas las partes</option><option value="asignados" ${U.tokSolo === 'asignados' ? 'selected' : ''}>Solo con país asignado</option></select>
+    </div>
+    <div class="tabla-wrap" style="max-height:420px"><table class="t"><thead><tr><th>Parte del nombre</th><th class="num">Roles</th><th class="num">Usuarios</th><th>Ejemplos</th><th>País</th></tr></thead><tbody>
+    ${pgT.items.map((t) => `<tr><td class="mono">${h(t.token)}</td><td class="num">${n(t.roles)}</td><td class="num">${n(t.usuarios)}</td><td class="mono t2">${t.ejemplos.map(h).join('<br>')}</td><td>${selPais(`data-regla="token" data-valor="${h(t.token)}"`, t.pais)}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${pie(toks, pgT, 'tok')}
+    <h3>Patrones "contiene"</h3>
+    <p class="t2 peq" style="margin-top:0">Para convenciones sin separador (por ejemplo <span class="mono">ZUYFI_…</span>): todo rol cuyo nombre contenga el texto recibe ese país.</p>
+    <div class="fila">
+      <input class="campo mono" id="contTexto" placeholder="Texto, p. ej. ZUY">
+      ${selPais('id="contPais"', '')}
+      <button class="btn" data-accion="agregar-contiene">Agregar</button>
+    </div>
+    ${contiene.length ? `<ul style="margin:8px 0 0;padding-left:18px">${contiene.map((r) => `<li><span class="mono">${h(r.valor)}</span> → ${PAISES[r.pais]} · <button class="link" data-accion="quitar-contiene" data-valor="${h(r.valor)}">quitar</button> <span class="muted peq">(${n(Object.keys(S.calc.rolesTodos).filter((a) => a.includes(r.valor)).length)} roles con asignaciones vigentes)</span></li>`).join('')}</ul>` : ''}
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <div class="card-h"><h2>B. Grupo de usuarios (CLASS)</h2></div>
+      <p class="t2 peq" style="margin-top:0">Si los grupos de USR02 distinguen países, asignalos.</p>
+      <div class="tabla-wrap" style="max-height:320px"><table class="t"><thead><tr><th>Grupo</th><th class="num">Cuentas</th><th>País</th></tr></thead><tbody>
+      ${Object.entries(C.clases).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td class="mono">${h(k) || '<span class="muted">(vacío)</span>'}</td><td class="num">${n(v)}</td><td>${k ? selPais(`data-regla="clase" data-valor="${h(k)}"`, (S.conf.reglas.find((r) => r.tipo === 'clase' && r.valor === k) || {}).pais) : ''}</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>C. Niveles organizativos (AGR_1252)</h2></div>
+      ${S.datos.AGR_1252 ? `
+        <p class="t2 peq" style="margin-top:0">Asigná país a las sociedades (BUKRS), centros, organizaciones de ventas, etc. Es la pista más confiable.</p>
+        <select class="campo" id="orgCampo" style="margin-bottom:8px"><option value="">Todos los campos</option>${camposOrg.map((c) => `<option ${U.orgCampo === c ? 'selected' : ''}>${h(c)}</option>`).join('')}</select>
+        <div class="tabla-wrap" style="max-height:280px"><table class="t"><thead><tr><th>Campo</th><th>Valor</th><th class="num">Roles</th><th>País</th></tr></thead><tbody>
+        ${orgs.sort((a, b) => b.roles.size - a.roles.size).slice(0, 300).map((o) => `<tr><td class="mono">${h(o.campo)}</td><td class="mono">${h(o.valor)}</td><td class="num">${n(o.roles.size)}</td><td>${selPais(`data-regla="org" data-campo="${h(o.campo)}" data-valor="${h(o.valor)}"`, reglaOrg(o))}</td></tr>`).join('')}
+        </tbody></table></div>`
+      : `<p class="t2" style="margin-top:0">Opcional. Si cargás <b>AGR_1252</b> en el paso 1, vas a poder indicar qué sociedades, centros u organizaciones corresponden a cada país, y la app deduce el país de cada rol a partir de esos valores.</p>`}
+      <h3>D. Lista de referencia</h3>
+      <p class="t2 peq" style="margin:0">${S.datos.REF ? `${n(S.datos.REF.regs.length)} usuarios en la lista; cuentan como "incluir".` : 'Opcional: planilla de RR. HH. o lista propia de usuarios UY/CL (paso 1).'}</p>
+      <h3>Opciones</h3>
+      <label class="fila"><input type="checkbox" id="excluirTecnicas" ${S.conf.excluirTecnicas ? 'checked' : ''}> Sugerir excluir cuentas técnicas (tipo B, C, L, S)</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h2>Resultado y revisión cuenta por cuenta</h2>
+      <div class="fila">
+        <button class="btn" data-accion="exportar-universo">Exportar universo (CSV)</button>
+        <label class="btn">Importar universo<input type="file" class="oculto" id="importarUniverso" accept=".csv,.txt"></label>
+        <button class="btn" data-accion="exportar-conf">Exportar configuración</button>
+        <label class="btn">Importar configuración<input type="file" class="oculto" id="importarConf" accept=".json"></label>
+      </div>
+    </div>
+    <p class="t2 peq" style="margin-top:0">La primera vez podés recorrer las cuentas "por revisar" y decidir una por una; las decisiones manuales siempre ganan a la sugerencia. Exportá el universo para reutilizarlo en la próxima extracción: las cuentas nuevas aparecerán como pendientes.</p>
+    <div class="fila" style="margin-bottom:8px">
+      <select class="campo" id="uFiltro">
+        ${[['pendientes', 'Por revisar'], ['incluidos', 'En el universo'], ['sinpais', 'En el universo sin país'], ['excluidos', 'Excluidas'], ['manuales', 'Decididas a mano'], ['todas', 'Todas']].map(([k, v]) => `<option value="${k}" ${f === k ? 'selected' : ''}>${v}</option>`).join('')}
+      </select>
+      <input class="campo" id="uTexto" placeholder="Buscar usuario, grupo, rol…" value="${h(U.uTexto)}">
+      <span class="t2 peq">${n(U.uSel.size)} seleccionada(s)</span>
+      <button class="btn mini" data-accion="sel-pagina">Seleccionar página</button>
+      <button class="btn mini" data-accion="sel-filtro">Seleccionar todo el filtro (${n(lista.length)})</button>
+      <button class="btn mini" data-accion="sel-ninguna">Limpiar selección</button>
+    </div>
+    <div class="fila" style="margin-bottom:8px">
+      <span class="peq t2">Con las seleccionadas:</span>
+      <button class="btn mini" data-masivo="incluir">Incluir</button>
+      <button class="btn mini" data-masivo="incluir" data-pais="UY">Incluir como UY</button>
+      <button class="btn mini" data-masivo="incluir" data-pais="CL">Incluir como CL</button>
+      <button class="btn mini" data-masivo="incluir" data-pais="UY+CL">Incluir como UY+CL</button>
+      <button class="btn mini" data-masivo="excluir">Excluir</button>
+      <button class="btn mini" data-masivo="">Volver a la sugerencia</button>
+    </div>
+    <div class="tabla-wrap"><table class="t"><thead><tr><th></th><th>Usuario</th><th>Tipo</th><th>Estado</th><th>Grupo</th><th class="num">Roles vig.</th><th>Pistas</th><th>Sugerencia</th><th>Decisión</th><th>País</th></tr></thead><tbody>
+    ${pgU.items.map((c) => `<tr>
+      <td><input type="checkbox" data-sel="${h(c.bname)}" ${U.uSel.has(c.bname) ? 'checked' : ''} aria-label="Seleccionar ${h(c.bname)}"></td>
+      <td><button class="link mono" data-ficha="${h(c.bname)}">${h(c.bname)}</button>${c.enRef && c.enRef.nombre ? `<div class="peq t2">${h(c.enRef.nombre)}</div>` : ''}</td>
+      <td>${h(TIPOS[c.ustyp] || c.ustyp || '—')}</td>
+      <td>${tagEstado(c)}</td>
+      <td class="mono">${h(c.clase) || '—'}</td>
+      <td class="num">${n(c.vigentes.length)}</td>
+      <td>${evidencia(c)}</td>
+      <td>${tagSug[c.sug]}<div class="peq t2">${h(c.motivo)}</div></td>
+      <td><select class="campo" data-decision="${h(c.bname)}"><option value="" ${!c.manual ? 'selected' : ''}>Según sugerencia</option><option value="incluir" ${c.manual && c.final === 'incluir' ? 'selected' : ''}>Incluir</option><option value="excluir" ${c.manual && c.final === 'excluir' ? 'selected' : ''}>Excluir</option><option value="revisar" ${c.manual && c.final === 'revisar' ? 'selected' : ''}>Dejar en revisión</option></select></td>
+      <td>${c.final === 'incluir' ? `<select class="campo" data-pais-cuenta="${h(c.bname)}"><option value="">${c.pais.length && !(S.conf.decisiones[c.bname] || {}).pais ? 'Auto: ' + c.pais.join('+') : 'Auto'}</option>${['UY', 'CL', 'UY+CL'].map((p) => `<option ${(S.conf.decisiones[c.bname] || {}).pais === p ? 'selected' : ''}>${p}</option>`).join('')}</select>` : '<span class="muted">—</span>'}</td>
+    </tr>`).join('') || '<tr><td colspan="10" class="muted" style="text-align:center;padding:24px">Nada para mostrar con este filtro.</td></tr>'}
+    </tbody></table></div>
+    ${pie(lista, pgU, 'u')}
+  </div>
+  ${cont.incluir ? '<div class="fila"><button class="btn prim" data-tab-ir="analisis">Siguiente: análisis del universo →</button></div>' : ''}`;
+}
+
+// -------------------------------------------------------- vista: análisis
+const SENALES = [
+  ['bloqueada', 'media', 'Cuentas bloqueadas', 'UFLAG distinto de 0.', (c) => c.bloqueada],
+  ['sinAcceso', 'media', 'Utilizables sin acceso reciente', (P) => `Último acceso hace más de ${P.diasSinAcceso} días respecto de la extracción. No prueba que el acceso sobre.`, (c, P) => c.utilizable && c.diasSinAcceso !== null && c.diasSinAcceso > P.diasSinAcceso],
+  ['nuncaAccedio', 'media', 'Utilizables sin registro de acceso', 'TRDAT vacío.', (c) => c.utilizable && !c.trdat],
+  ['muchosRoles', 'info', 'Cantidad alta de roles vigentes', (P) => `${P.umbralRoles} o más. Señal para revisar, no riesgo comprobado.`, (c, P) => c.vigentes.length >= P.umbralRoles],
+  ['sinRoles', 'info', 'Utilizables sin roles vigentes', 'Podría tener perfiles asignados directamente (no extraídos).', (c) => c.utilizable && !c.vigentes.length],
+  ['porVencer', 'info', 'Con roles que vencen en 30 días', '', (c) => c.roles.some((r) => r.porVencer)],
+  ['rolesMixtos', 'media', 'Con roles de otros países', 'Cuenta del universo con roles que tienen pistas de Argentina u otro país.', (c) => c.ev.AR + c.ev.OTRO > 0],
+  ['vencidaSinBloqueo', 'info', 'Validez vencida sin bloqueo', 'No puede iniciar sesión, pero no está bloqueada.', (c) => c.vigCuenta === 'vencida' && !c.bloqueada],
+];
+const txtSenal = (s, P) => typeof s[3] === 'function' ? s[3](P) : s[3];
+
+function vistaAnalisis() {
+  const C = S.calc, U = S.ui, P = S.conf;
+  if (!C || !C.universo.length) return '<h1>Análisis</h1><div class="aviso warn"><b>El universo está vacío</b>Definí en el paso 2 qué cuentas incluir.</div>';
+  const u = C.universo;
+  const uy = u.filter((c) => c.pais.includes('UY') && !c.pais.includes('CL')).length;
+  const cl = u.filter((c) => c.pais.includes('CL') && !c.pais.includes('UY')).length;
+  const ambos = u.filter((c) => c.pais.length > 1).length;
+  const asigVig = u.reduce((a, c) => a + c.vigentes.length, 0);
+  const conteo = Object.fromEntries(SENALES.map((s) => [s[0], u.filter((c) => s[4](c, P)).length]));
+
+  let lista = u;
+  if (U.aFiltro && U.aFiltro.startsWith('s:')) { const s = SENALES.find((x) => x[0] === U.aFiltro.slice(2)); lista = lista.filter((c) => s[4](c, P)); }
+  else if (U.aFiltro === 'UY') lista = lista.filter((c) => c.pais.includes('UY'));
+  else if (U.aFiltro === 'CL') lista = lista.filter((c) => c.pais.includes('CL'));
+  else if (U.aFiltro === 'utilizables') lista = lista.filter((c) => c.utilizable);
+  if (U.aTexto) { const t = U.aTexto.toUpperCase(); lista = lista.filter((c) => c.bname.includes(t) || c.clase.includes(t) || c.vigentes.some((r) => r.includes(t)) || (c.enRef && c.enRef.nombre.toUpperCase().includes(t))); }
+  const [oc, od] = U.aOrden;
+  const clave = { bname: (c) => c.bname, pais: (c) => c.pais.join('+'), estado: (c) => (c.bloqueada ? 2 : c.utilizable ? 0 : 1), acceso: (c) => c.trdat || '', roles: (c) => c.vigentes.length, senales: (c) => SENALES.filter((s) => s[4](c, P)).length }[oc];
+  lista = [...lista].sort((a, b) => { const x = clave(a), y = clave(b); return (x > y ? 1 : x < y ? -1 : 0) * od; });
+  const pg = paginar(lista, U.aPag, 100);
+
+  // roles
+  let roles = C.roles;
+  if (U.rTexto) roles = roles.filter((r) => r.agr.includes(U.rTexto.toUpperCase()));
+  const [rc, rd] = U.rOrden;
+  roles = [...roles].sort((a, b) => ((a[rc] > b[rc] ? 1 : a[rc] < b[rc] ? -1 : 0) * rd) || a.agr.localeCompare(b.agr));
+  const pgR = paginar(roles, U.rPag, 50);
+  const th = (id, t, num, grupo) => { const o = grupo === 'r' ? U.rOrden : U.aOrden; return `<th class="ord ${num ? 'num' : ''}" data-orden="${grupo}:${id}">${t}${o[0] === id ? (o[1] > 0 ? ' ↑' : ' ↓') : ''}</th>`; };
+
+  return `
+  ${S.demo ? '<div class="banda-demo"><b>Datos de ejemplo ficticios.</b> <span class="t2">No provienen de SAP.</span></div>' : ''}
+  <h1>Análisis del universo</h1>
+  <p class="sub">Solo cuentas con decisión "incluir". Fecha de referencia ${fmtFecha(S.fechaRef)}. Nivel 1 — asignación: muestra roles registrados, no capacidad efectiva ni uso real.</p>
+  <div class="grid g6">
+    ${stat('Cuentas en el universo', u.length, '', 'a-todas')}
+    ${stat('Uruguay', uy + ambos, ambos ? `${n(ambos)} también Chile` : '', 'a-UY')}
+    ${stat('Chile', cl + ambos, ambos ? `${n(ambos)} también Uruguay` : '', 'a-CL')}
+    ${stat('Utilizables', u.filter((c) => c.utilizable).length, 'sin bloqueo y vigentes', 'a-utilizables')}
+    ${stat('Roles distintos', C.roles.length, 'con asignación vigente')}
+    ${stat('Asignaciones vigentes', asigVig)}
+  </div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card">${'<h2>Países</h2>' + barra([['Solo Uruguay', uy, 'var(--uy)'], ['Solo Chile', cl, 'var(--cl)'], ['Ambos', ambos, 'var(--s3)'], ['Sin país', u.length - uy - cl - ambos, 'var(--base)']])}</div>
+    <div class="card"><h2>Parámetros</h2><div class="fila">
+      <label>Días sin acceso <input type="number" min="1" class="campo" style="width:80px" id="pDias" value="${P.diasSinAcceso}"></label>
+      <label>Roles "altos" desde <input type="number" min="1" class="campo" style="width:80px" id="pRoles" value="${P.umbralRoles}"></label>
+    </div></div>
+  </div>
+  <div class="card">
+    <h2>Señales para revisar</h2>
+    <p class="t2 peq" style="margin-top:0">Indicios sobre asignaciones registradas, no hallazgos confirmados. Hacé clic en el número para filtrar la lista.</p>
+    <table class="t"><tbody>${SENALES.map((s) => `<tr><td style="width:120px"><span class="sev ${s[1]}"><b>${s[1] === 'alta' ? '▲' : s[1] === 'media' ? '●' : 'i'}</b>${s[1] === 'info' ? 'Informativa' : 'Revisar'}</span></td><td><b>${h(s[2])}</b><div class="peq t2">${h(txtSenal(s, P))}</div></td><td class="num"><button class="link" style="font-size:18px;font-weight:600" data-accion="a-s:${s[0]}">${n(conteo[s[0]])}</button></td></tr>`).join('')}</tbody></table>
+  </div>
+  <div class="card">
+    <div class="card-h"><h2>Cuentas del universo</h2><button class="btn" data-accion="exportar-cuentas">Exportar CSV</button></div>
+    <div class="fila" style="margin-bottom:8px">
+      <select class="campo" id="aFiltro"><option value="">Todas</option><option value="UY" ${U.aFiltro === 'UY' ? 'selected' : ''}>Uruguay</option><option value="CL" ${U.aFiltro === 'CL' ? 'selected' : ''}>Chile</option><option value="utilizables" ${U.aFiltro === 'utilizables' ? 'selected' : ''}>Utilizables</option>${SENALES.map((s) => `<option value="s:${s[0]}" ${U.aFiltro === 's:' + s[0] ? 'selected' : ''}>${h(s[2])}</option>`).join('')}</select>
+      <input class="campo" id="aTexto" placeholder="Buscar usuario, rol, grupo…" value="${h(U.aTexto)}">
+    </div>
+    <div class="tabla-wrap"><table class="t"><thead><tr>${th('bname', 'Usuario', 0, 'a')}${th('pais', 'País', 0, 'a')}<th>Tipo</th>${th('estado', 'Estado', 0, 'a')}${th('acceso', 'Último acceso', 0, 'a')}${th('roles', 'Roles vigentes', 1, 'a')}${th('senales', 'Señales', 0, 'a')}</tr></thead><tbody>
+    ${pg.items.map((c) => { const ss = SENALES.filter((s) => s[4](c, P)); return `<tr><td><button class="link mono" data-ficha="${h(c.bname)}">${h(c.bname)}</button>${c.enRef && c.enRef.nombre ? `<div class="peq t2">${h(c.enRef.nombre)}</div>` : ''}</td><td>${c.pais.map(tagPais).join(' ') || '<span class="muted">—</span>'}</td><td>${h(TIPOS[c.ustyp] || c.ustyp || '—')}</td><td>${tagEstado(c)}</td><td>${c.trdat ? `${fmtFecha(c.trdat)}<div class="peq muted">hace ${c.diasSinAcceso} d</div>` : '<span class="muted">Sin registro</span>'}</td><td class="num">${n(c.vigentes.length)}</td><td>${ss.map((s) => `<span class="sev ${s[1]}" title="${h(s[2])}"><b>${s[1] === 'info' ? 'i' : '●'}</b></span>`).join(' ') || '<span class="muted">—</span>'}</td></tr>`; }).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Sin resultados.</td></tr>'}
+    </tbody></table></div>
+    ${pie(lista, pg, 'a')}
+  </div>
+  <div class="card">
+    <div class="card-h"><h2>Roles asignados al universo</h2><button class="btn" data-accion="exportar-roles">Exportar CSV</button></div>
+    <p class="t2 peq" style="margin-top:0">Consulta inversa. "Fuera del universo" indica cuántas cuentas no incluidas (p. ej. de Argentina) comparten el mismo rol: dato útil para el rediseño.</p>
+    <input class="campo" id="rTexto" placeholder="Buscar rol…" value="${h(U.rTexto)}" style="margin-bottom:8px">
+    <div class="tabla-wrap"><table class="t"><thead><tr>${th('agr', 'Rol', 0, 'r')}${th('enUniverso', 'Cuentas del universo', 1, 'r')}${th('uy', 'UY', 1, 'r')}${th('cl', 'CL', 1, 'r')}${th('fuera', 'Fuera del universo', 1, 'r')}<th>País según pistas</th></tr></thead><tbody>
+    ${pgR.items.map((r) => `<tr><td><button class="link mono" data-rol="${h(r.agr)}">${h(r.agr)}</button></td><td class="num">${n(r.enUniverso)}</td><td class="num">${n(r.uy)}</td><td class="num">${n(r.cl)}</td><td class="num">${n(r.fuera)}</td><td>${Object.keys(C.paisesDeRol(r.agr)).map(tagPais).join(' ') || '<span class="muted">—</span>'}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${pie(roles, pgR, 'r')}
+  </div>`;
+}
+
+// -------------------------------------------------------- vista: registro
+function vistaRegistro() {
+  const filas = Object.entries(S.datos).filter(([, d]) => d).map(([f, d]) => `<tr><td>${h(FUENTES[f].titulo)}</td><td>${h(d.meta.archivo)}</td><td class="mono peq">${h(d.meta.sha)}</td><td class="num">${n(d.meta.leidas)}</td><td class="num">${n(d.regs.length)}</td><td class="num">${n(d.meta.rechazadas)}</td><td class="num">${n(d.meta.duplicadas)}</td><td>${h(d.meta.cargado)}</td></tr>
+    ${d.meta.adv.length ? `<tr><td></td><td colspan="7" class="peq t2">${d.meta.adv.map(h).join('<br>')}</td></tr>` : ''}`).join('');
+  const C = S.calc;
+  return `<h1>Registro y ayuda</h1>
+  <div class="card"><h2>Archivos cargados en esta sesión</h2>
+    ${filas ? `<div class="tabla-wrap"><table class="t"><thead><tr><th>Fuente</th><th>Archivo</th><th>SHA-256</th><th class="num">Leídas</th><th class="num">Aceptadas</th><th class="num">Rechazadas</th><th class="num">Duplicadas</th><th>Cargado</th></tr></thead><tbody>${filas}</tbody></table></div>` : '<p class="t2">Nada cargado todavía.</p>'}
+    ${C && C.huerfanas.length ? `<div class="aviso warn" style="margin-top:12px"><b>${n(C.huerfanas.length)} usuario(s) de AGR_USERS no están en USR02</b>Puede indicar extracciones de momentos distintos o un filtro en USR02: ${h(C.huerfanas.slice(0, 30).join(', '))}${C.huerfanas.length > 30 ? '…' : ''}</div>` : ''}
+  </div>
+  <div class="card"><h2>Cómo se interpreta</h2>
+    <ul class="t2" style="margin:0;padding-left:18px">
+      <li><b>Cuenta utilizable</b>: UFLAG = 0 y la fecha de extracción dentro de GLTGV–GLTGB (vacío o 31/12/9999 = sin límite).</li>
+      <li><b>UFLAG</b> por bits: 32 bloqueo global (CUA), 64 bloqueo por administrador, 128 intentos fallidos. 192 = 64 + 128.</li>
+      <li><b>USTYP</b>: A diálogo, B sistema, C comunicación, L referencia, S servicio.</li>
+      <li><b>Asignación vigente</b>: la fecha de extracción entre FROM_DAT y TO_DAT.</li>
+      <li><b>COL_FLAG / ORG_FLAG</b> se muestran tal cual; su interpretación queda pendiente de validar.</li>
+      <li><b>Universo</b>: sugerencia por pistas (roles, grupo, niveles organizativos, lista de referencia); la decisión manual siempre manda.</li>
+      <li>Una transacción o rol asignado no prueba capacidad efectiva; ningún uso observado no prueba que un permiso sobre.</li>
+    </ul>
+  </div>
+  <div class="card"><h2>Datos y privacidad</h2>
+    <p class="t2" style="margin-top:0">Los archivos se leen en memoria en este navegador y se descartan al cerrar la página. Solo se recuerdan las reglas y decisiones del universo (usuarios SAP, sin datos personales adicionales) en el almacenamiento local del navegador.</p>
+    <button class="btn peligro" data-accion="borrar-conf">Borrar reglas y decisiones guardadas</button>
+  </div>`;
+}
+
+// ------------------------------------------------------------------ cajón
+function abrirCajon(html) {
+  document.getElementById('cajon-raiz').innerHTML = `<div class="cajon-fondo" data-accion="cerrar-cajon"></div><aside class="cajon" role="dialog" aria-modal="true">${html}</aside>`;
+}
+function fichaCuenta(b) {
+  const c = S.calc.porNombre[b];
+  if (!c) return;
+  const roles = c.roles.map((r) => `<tr><td class="mono">${h(r.agr)}</td><td>${r.estado === 'vigente' ? (r.porVencer ? '<span class="tag warn"><i></i>Por vencer</span>' : '<span class="tag ok"><i></i>Vigente</span>') : `<span class="tag"><i></i>${r.estado === 'vencida' ? 'Vencida' : 'Futura'}</span>`}</td><td>${fmtFecha(r.desde)}</td><td>${fmtFecha(r.hasta)}</td><td>${h(r.col) || '—'}</td><td>${Object.keys(S.calc.paisesDeRol(r.agr)).map(tagPais).join(' ') || '<span class="muted">—</span>'}</td></tr>`).join('');
+  abrirCajon(`<div class="card-h"><h1 class="mono" style="font-size:20px">${h(c.bname)}</h1><button class="btn" data-accion="cerrar-cajon">Cerrar</button></div>
+    ${c.enRef ? `<p class="sub">${h(c.enRef.nombre)}${c.enRef.area ? ' · ' + h(c.enRef.area) : ''}${c.enRef.estado ? ' · ' + h(c.enRef.estado) : ''}</p>` : ''}
+    <div class="card"><h2>Universo</h2><dl class="datos">
+      <div><dt>Decisión</dt><dd>${tagSug[c.final]} ${c.manual ? '<span class="peq t2">(manual)</span>' : '<span class="peq t2">(sugerencia)</span>'}</dd></div>
+      <div><dt>Motivo de la sugerencia</dt><dd>${h(c.motivo)}</dd></div>
+      <div><dt>Pistas</dt><dd>${evidencia(c)}</dd></div>
+      <div><dt>País</dt><dd>${c.pais.map(tagPais).join(' ') || '—'}</dd></div>
+    </dl>
+    <div class="fila" style="margin-top:12px"><button class="btn" data-decidir="incluir" data-b="${h(c.bname)}">Incluir</button><button class="btn" data-decidir="excluir" data-b="${h(c.bname)}">Excluir</button><button class="btn" data-decidir="" data-b="${h(c.bname)}">Según sugerencia</button></div></div>
+    <div class="card"><h2>Cuenta (USR02)</h2><dl class="datos">
+      <div><dt>Tipo (USTYP)</dt><dd>${h(TIPOS[c.ustyp] || c.ustyp || '—')}</dd></div>
+      <div><dt>Estado</dt><dd>${tagEstado(c)}${c.motivos.length ? `<div class="peq t2">${h(c.motivos.join(' · '))}</div>` : ''}</dd></div>
+      <div><dt>Grupo (CLASS)</dt><dd class="mono">${h(c.clase) || '—'}</dd></div>
+      <div><dt>Válido desde / hasta</dt><dd>${fmtFecha(c.gltgv)} — ${c.gltgb ? fmtFecha(c.gltgb) : 'Sin límite'}</dd></div>
+      <div><dt>Último acceso (TRDAT/LTIME)</dt><dd>${c.trdat ? `${fmtFecha(c.trdat)} ${c.ltime || ''} (hace ${c.diasSinAcceso} d)` : 'Sin registro'}</dd></div>
+    </dl></div>
+    <div class="card"><h2>Roles (${n(c.vigentes.length)} vigentes de ${n(c.roles.length)} filas)</h2>
+      <div class="tabla-wrap"><table class="t"><thead><tr><th>Rol</th><th>Estado</th><th>Desde</th><th>Hasta</th><th>COL_FLAG</th><th>País (pistas)</th></tr></thead><tbody>${roles || '<tr><td colspan="6" class="muted">Sin roles.</td></tr>'}</tbody></table></div>
+    </div>
+    <p class="t2 peq">Falta extraer: transacciones (AGR_TCODES), autorizaciones (AGR_1251), Fiori y uso real. No se puede afirmar todavía qué puede ejecutar efectivamente ni si hay conflictos SoD.</p>`);
+}
+function fichaRol(agr) {
+  const r = S.calc.rolesTodos[agr];
+  if (!r) return;
+  const filas = r.usuarios.map((b) => S.calc.porNombre[b]).map((c) => `<tr><td><button class="link mono" data-ficha="${h(c.bname)}">${h(c.bname)}</button></td><td>${c.pais.map(tagPais).join(' ') || '—'}</td><td>${tagEstado(c)}</td><td>${c.enRef ? h(c.enRef.area) : ''}</td></tr>`).join('');
+  abrirCajon(`<div class="card-h"><h1 class="mono" style="font-size:18px">${h(agr)}</h1><button class="btn" data-accion="cerrar-cajon">Cerrar</button></div>
+    <div class="grid g6">${stat('Cuentas del universo', r.enUniverso)}${stat('Uruguay', r.uy)}${stat('Chile', r.cl)}${stat('Fuera del universo', r.fuera)}</div>
+    <div class="card" style="margin-top:12px"><h2>Cuentas del universo con el rol vigente</h2><div class="tabla-wrap"><table class="t"><thead><tr><th>Usuario</th><th>País</th><th>Estado</th><th>Área</th></tr></thead><tbody>${filas}</tbody></table></div></div>`);
+}
+
+// ----------------------------------------------------------------- render
+function recalcular() { if (S.datos.USR02) calcular(); else S.calc = null; render(); }
+function render() {
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('activo', b.dataset.tab === S.tab));
+  const app = document.getElementById('app');
+  const foco = document.activeElement && document.activeElement.id;
+  const pos = foco && document.activeElement.selectionStart;
+  app.innerHTML = S.tab === 'cargar' ? vistaCargar() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : vistaRegistro();
+  if (S.tab === 'cargar') document.getElementById('mapeo').innerHTML = vistaMapeo();
+  if (foco) { const el = document.getElementById(foco); if (el) { el.focus(); try { if (pos != null) el.setSelectionRange(pos, pos); } catch (e) { /* no aplica */ } } }
+}
+
+// ---------------------------------------------------------------- eventos
+async function elegirArchivo(fuente, file) {
+  if (!file) return;
+  try {
+    const a = await leerArchivo(file);
+    const punt = a.hojas.map((x) => puntaje(fuente, x.filas[filaEncabezado(fuente, x.filas)] || []));
+    const hoja = punt.indexOf(Math.max(...punt));
+    const fe = filaEncabezado(fuente, a.hojas[hoja].filas);
+    S.pendiente = { fuente, archivo: a, hoja, fe, mapeo: mapeoSugerido(fuente, armarTabla(a.hojas[hoja], fe).enc) };
+    validarPendiente();
+  } catch (e) {
+    S.pendiente = { fuente, archivo: { nombre: file.name, hojas: [{ filas: [] }], sha: '' }, hoja: 0, fe: 0, mapeo: {}, error: e.message || String(e) };
+  }
+  render();
+  document.getElementById('mapeo').scrollIntoView({ behavior: 'smooth' });
+}
+function validarPendiente() {
+  const P = S.pendiente;
+  P.error = null; P.resultado = null;
+  try { P.resultado = procesar(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe), P.mapeo); }
+  catch (e) { P.error = e.message || String(e); }
+}
+function confirmarPendiente() {
+  const P = S.pendiente, r = P.resultado;
+  S.datos[P.fuente] = { regs: r.regs, meta: { archivo: P.archivo.nombre, sha: P.archivo.sha, leidas: r.leidas, rechazadas: r.rechazadas, duplicadas: r.duplicadas, adv: [...P.archivo.adv, ...r.adv], cargado: new Date().toLocaleString('es-UY') } };
+  S.pendiente = null;
+  if (P.fuente === 'AGR_USERS') aplicarSugeridas();
+  recalcular();
+}
+function decidir(bnames, d, pais) {
+  const ahora = new Date().toISOString();
+  for (const b of bnames) {
+    if (d === '' && !pais) delete S.conf.decisiones[b];
+    else S.conf.decisiones[b] = Object.assign({}, S.conf.decisiones[b], { d, pais: pais !== undefined ? pais : (S.conf.decisiones[b] || {}).pais, fecha: ahora });
+  }
+  guardarConf();
+  recalcular();
+}
+
+document.getElementById('tabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-tab]'); if (b) { S.tab = b.dataset.tab; render(); window.scrollTo(0, 0); } });
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-accion],[data-tab-ir],[data-ficha],[data-rol],[data-pag],[data-masivo],[data-decidir],[data-orden]');
+  if (!t) return;
+  const U = S.ui;
+  if (t.dataset.tabIr) { S.tab = t.dataset.tabIr; render(); window.scrollTo(0, 0); return; }
+  if (t.dataset.ficha) return fichaCuenta(t.dataset.ficha);
+  if (t.dataset.rol) return fichaRol(t.dataset.rol);
+  if (t.dataset.pag) { const k = t.dataset.pag + 'Pag'; U[k] = Math.max(0, U[k] + Number(t.dataset.dir)); return render(); }
+  if (t.dataset.orden) { const [g, id] = t.dataset.orden.split(':'); const k = g === 'r' ? 'rOrden' : 'aOrden'; U[k] = [id, U[k][0] === id ? -U[k][1] : (['roles', 'enUniverso', 'uy', 'cl', 'fuera', 'senales'].includes(id) ? -1 : 1)]; return render(); }
+  if (t.dataset.masivo !== undefined) {
+    if (!U.uSel.size) return alert('Seleccioná al menos una cuenta.');
+    decidir([...U.uSel], t.dataset.masivo, t.dataset.pais);
+    U.uSel.clear(); return render();
+  }
+  if (t.dataset.decidir !== undefined) { decidir([t.dataset.b], t.dataset.decidir); fichaCuenta(t.dataset.b); return; }
+  const a = t.dataset.accion;
+  if (a === 'cerrar-cajon') document.getElementById('cajon-raiz').innerHTML = '';
+  else if (a === 'quitar') { S.datos[t.dataset.f] = null; recalcular(); }
+  else if (a === 'cancelar-mapeo') { S.pendiente = null; render(); }
+  else if (a === 'validar') { validarPendiente(); render(); }
+  else if (a === 'confirmar') confirmarPendiente();
+  else if (a === 'demo') cargarDemo();
+  else if (a === 'demo-archivos') { const d = generarDemo(); descargar('ejemplo_USR02.csv', d.USR02); descargar('ejemplo_AGR_USERS.csv', d.AGR_USERS); descargar('ejemplo_AGR_1252.csv', d.AGR_1252); }
+  else if (a === 'agregar-contiene') {
+    const v = document.getElementById('contTexto').value.trim().toUpperCase(), p = document.getElementById('contPais').value;
+    if (!v || !p) return alert('Indicá el texto y el país.');
+    setRegla('contiene', v, p);
+  }
+  else if (a === 'quitar-contiene') setRegla('contiene', t.dataset.valor, '');
+  else if (a === 'sel-pagina') { document.querySelectorAll('[data-sel]').forEach((x) => U.uSel.add(x.dataset.sel)); render(); }
+  else if (a === 'sel-filtro') { const v = U.uFiltro; S.calc.cuentas.filter((c) => v === 'todas' || (v === 'pendientes' && c.final === 'revisar') || (v === 'incluidos' && c.final === 'incluir') || (v === 'excluidos' && c.final === 'excluir') || (v === 'manuales' && c.manual) || (v === 'sinpais' && c.final === 'incluir' && !c.pais.length))
+      .filter((c) => !U.uTexto || c.bname.includes(U.uTexto.toUpperCase()) || c.clase.includes(U.uTexto.toUpperCase()) || c.vigentes.some((r) => r.includes(U.uTexto.toUpperCase()))).forEach((c) => U.uSel.add(c.bname)); render(); }
+  else if (a === 'sel-ninguna') { U.uSel.clear(); render(); }
+  else if (a && a.startsWith('u-')) { U.uFiltro = a.slice(2); U.uPag = 0; render(); }
+  else if (a && a.startsWith('a-')) { const v = a.slice(2); U.aFiltro = v === 'todas' ? '' : v; U.aPag = 0; render(); document.getElementById('aFiltro').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  else if (a === 'exportar-universo') {
+    descargarCsv(`universo_${S.fechaRef}.csv`, ['Usuario', 'Decision', 'Origen', 'Pais', 'Tipo', 'Grupo', 'Motivo sugerencia', 'Pistas', 'Fecha extraccion'],
+      S.calc.cuentas.map((c) => [c.bname, c.final, c.manual ? 'manual' : 'sugerencia', c.pais.join('+'), c.ustyp, c.clase, c.motivo, Object.entries(c.ev).filter(([, v]) => v).map(([k, v]) => `${k}:${v}`).join(' '), S.fechaRef]));
+  }
+  else if (a === 'exportar-conf') descargar(`configuracion_universo_${hoyISO()}.json`, JSON.stringify(S.conf, null, 2), 'application/json');
+  else if (a === 'exportar-cuentas') {
+    const P = S.conf;
+    descargarCsv(`cuentas_universo_${S.fechaRef}.csv`, ['Usuario', 'Pais', 'Nombre', 'Tipo', 'Bloqueada', 'Motivo bloqueo', 'Valido desde', 'Valido hasta', 'Ultimo acceso', 'Grupo', 'Roles vigentes', 'Senales', 'Fecha extraccion'],
+      S.calc.universo.map((c) => [c.bname, c.pais.join('+'), c.enRef ? c.enRef.nombre : '', TIPOS[c.ustyp] || c.ustyp, c.bloqueada ? 'Si' : 'No', c.motivos.join(' · '), c.gltgv, c.gltgb, c.trdat, c.clase, c.vigentes.length, SENALES.filter((s) => s[4](c, P)).map((s) => s[2]).join(' · '), S.fechaRef]));
+  }
+  else if (a === 'exportar-roles') descargarCsv(`roles_universo_${S.fechaRef}.csv`, ['Rol', 'Cuentas del universo', 'UY', 'CL', 'Fuera del universo', 'Pais segun pistas'],
+      S.calc.roles.map((r) => [r.agr, r.enUniverso, r.uy, r.cl, r.fuera, Object.keys(S.calc.paisesDeRol(r.agr)).join('+')]));
+  else if (a === 'borrar-conf') { if (confirm('¿Borrar todas las reglas y decisiones del universo guardadas en este navegador?')) { S.conf = { reglas: [], decisiones: {}, excluirTecnicas: true, sugeridasAplicadas: false, umbralRoles: 25, diasSinAcceso: 90 }; guardarConf(); aplicarSugeridas(); recalcular(); } }
+});
+
+document.addEventListener('change', async (e) => {
+  const t = e.target, U = S.ui;
+  if (t.dataset.archivo) { await elegirArchivo(t.dataset.archivo, t.files[0]); t.value = ''; return; }
+  if (t.id === 'fechaRef') { S.fechaRef = t.value || hoyISO(); return recalcular(); }
+  if (t.id === 'mapeo-hoja') { const P = S.pendiente; P.hoja = +t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
+  if (t.id === 'mapeo-fe') { const P = S.pendiente; P.fe = Math.max(0, +t.value - 1); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
+  if (t.dataset.mapeo !== undefined) { const P = S.pendiente; if (t.value) P.mapeo[t.dataset.mapeo] = t.value; else delete P.mapeo[t.dataset.mapeo]; P.resultado = null; return render(); }
+  if (t.dataset.regla) return setRegla(t.dataset.regla, t.dataset.valor, t.value, t.dataset.campo);
+  if (t.dataset.decision !== undefined) return decidir([t.dataset.decision], t.value);
+  if (t.dataset.paisCuenta !== undefined) { const b = t.dataset.paisCuenta; const d = S.conf.decisiones[b] || {}; S.conf.decisiones[b] = Object.assign({}, d, { d: d.d || 'incluir', pais: t.value, fecha: new Date().toISOString() }); guardarConf(); return recalcular(); }
+  if (t.dataset.sel) { if (t.checked) U.uSel.add(t.dataset.sel); else U.uSel.delete(t.dataset.sel); return render(); }
+  if (t.id === 'excluirTecnicas') { S.conf.excluirTecnicas = t.checked; guardarConf(); return recalcular(); }
+  if (t.id === 'uFiltro') { U.uFiltro = t.value; U.uPag = 0; return render(); }
+  if (t.id === 'tokSolo') { U.tokSolo = t.value; U.tokPag = 0; return render(); }
+  if (t.id === 'orgCampo') { U.orgCampo = t.value; return render(); }
+  if (t.id === 'aFiltro') { U.aFiltro = t.value; U.aPag = 0; return render(); }
+  if (t.id === 'pDias') { S.conf.diasSinAcceso = Math.max(1, +t.value || 90); guardarConf(); return render(); }
+  if (t.id === 'pRoles') { S.conf.umbralRoles = Math.max(1, +t.value || 25); guardarConf(); return render(); }
+  if (t.id === 'importarUniverso' && t.files[0]) {
+    const { t: contenido } = decodificar(await t.files[0].arrayBuffer());
+    const filas = leerTexto(contenido);
+    const enc = (filas[0] || []).map(norm);
+    const iu = enc.indexOf('usuario'), id = enc.indexOf('decision'), ip = enc.indexOf('pais'), io = enc.indexOf('origen');
+    if (iu < 0 || id < 0) { alert('El archivo debe tener columnas "Usuario" y "Decision" (como el que exporta esta pantalla).'); return; }
+    let k = 0;
+    for (const f of filas.slice(1)) {
+      const b = usuario(f[iu]), d = norm(f[id]);
+      if (!b || !['incluir', 'excluir', 'revisar'].includes(d)) continue;
+      if (io >= 0 && norm(f[io]) === 'sugerencia') continue; // solo se importan decisiones manuales
+      S.conf.decisiones[b] = { d, pais: ip >= 0 ? txt(f[ip]).toUpperCase() : '', fecha: new Date().toISOString() };
+      k++;
+    }
+    guardarConf(); t.value = ''; recalcular();
+    alert(`Se importaron ${k} decisiones manuales. Las cuentas que no estaban en el archivo quedan según sugerencia.`);
+  }
+  if (t.id === 'importarConf' && t.files[0]) {
+    try { S.conf = Object.assign({ reglas: [], decisiones: {} }, JSON.parse(await t.files[0].text())); guardarConf(); t.value = ''; recalcular(); }
+    catch (err) { alert('No se pudo leer la configuración: ' + err.message); }
+  }
+});
+
+let temporizador;
+document.addEventListener('input', (e) => {
+  const t = e.target, U = S.ui;
+  const mapa = { uTexto: ['uTexto', 'uPag'], tokTexto: ['tokTexto', 'tokPag'], aTexto: ['aTexto', 'aPag'], rTexto: ['rTexto', 'rPag'] };
+  if (!mapa[t.id]) return;
+  U[mapa[t.id][0]] = t.value; U[mapa[t.id][1]] = 0;
+  clearTimeout(temporizador); temporizador = setTimeout(render, 250);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.getElementById('cajon-raiz').innerHTML = ''; });
+
+// Arrastrar y soltar sobre las zonas de carga
+document.addEventListener('dragover', (e) => { const z = e.target.closest('[data-zona]'); if (z) { e.preventDefault(); z.classList.add('arrastrando'); } });
+document.addEventListener('dragleave', (e) => { const z = e.target.closest('[data-zona]'); if (z) z.classList.remove('arrastrando'); });
+document.addEventListener('drop', (e) => { const z = e.target.closest('[data-zona]'); if (z) { e.preventDefault(); elegirArchivo(z.dataset.zona, e.dataTransfer.files[0]); } });
+
+// ------------------------------------------------------------ datos demo
+// 100 % ficticios: usuarios de Uruguay, Chile y Argentina con convenciones de
+// nombres de roles mixtas, para practicar la definición del universo.
+function generarDemo() {
+  let s = 20261020;
+  const r = () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const el = (l) => l[Math.floor(r() * l.length)];
+  const NOM = ['ANA', 'BRUNO', 'CARLA', 'DIEGO', 'ELENA', 'FACUNDO', 'GABRIELA', 'HERNAN', 'INES', 'JAVIER', 'KARINA', 'LUCAS', 'MARTINA', 'NICOLAS', 'OLIVIA', 'PABLO', 'ROMINA', 'SANTIAGO', 'TAMARA', 'VALENTIN'];
+  const APE = ['ACOSTA', 'BENITEZ', 'CABRERA', 'DIAZ', 'ESPINOZA', 'FERNANDEZ', 'GARCIA', 'HERRERA', 'IBARRA', 'JUAREZ', 'LOPEZ', 'MENDEZ', 'NUNEZ', 'OLIVERA', 'PEREZ', 'QUIROGA', 'RODRIGUEZ', 'SILVA', 'TORRES', 'VARGAS'];
+  const MOD = { FI: ['CONSULTA', 'ASIENTOS', 'PROVEEDORES', 'TESORERIA'], MM: ['CONSULTA', 'PEDIDOS', 'LIBERACION'], SD: ['CONSULTA', 'PEDIDOS', 'FACTURACION', 'PRECIOS'], WM: ['STOCK', 'MOVIMIENTOS'] };
+  const SOC = { UY: 'UY01', CL: 'CL01', AR: 'AR01' };
+  const ref = '2026-10-20';
+  const f8 = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
+  const off = (k) => { const d = new Date(ref + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return d; };
+  const usr = [['BNAME', 'USTYP', 'UFLAG', 'GLTGV', 'GLTGB', 'TRDAT', 'LTIME', 'CLASS']];
+  const agr = [['UNAME', 'AGR_NAME', 'FROM_DAT', 'TO_DAT', 'COL_FLAG', 'ORG_FLAG']];
+  const roles = new Set();
+  const usados = new Set();
+  const total = { UY: 70, CL: 45, AR: 260 };
+  for (const [pais, cant] of Object.entries(total)) {
+    for (let i = 0; i < cant; i++) {
+      let b = el(NOM)[0] + el(APE);
+      while (usados.has(b)) b = b.slice(0, 9) + String(Math.floor(r() * 99)).padStart(2, '0');
+      usados.add(b);
+      const clase = r() < 0.6 ? `SCIENZA_${pais}` : 'SCIENZA';
+      usr.push([b, 'A', r() < 0.05 ? '64' : '0', f8(off(-Math.floor(200 + r() * 2000))), r() < 0.05 ? f8(off(-30)) : '99991231', r() < 0.05 ? '00000000' : f8(off(-Math.floor(r() < 0.15 ? 100 + r() * 300 : r() * 30))), '093000', clase]);
+      const mods = Object.keys(MOD);
+      const n1 = 2 + Math.floor(r() * 5);
+      const asign = new Set(['Z_COMUN_LAUNCHPAD']);
+      for (let k = 0; k < n1; k++) { const m = el(mods); const rol = pais === 'CL' ? `ZCL_${m}_${el(MOD[m])}` : `Z${pais}_${m}_${el(MOD[m])}`; asign.add(rol); }
+      if (pais === 'UY' && r() < 0.12) asign.add(`ZCL_SD_${el(MOD.SD)}`); // opera también en Chile
+      if (pais !== 'AR' && r() < 0.05) asign.add(`ZAR_FI_${el(MOD.FI)}`); // pista mixta
+      if (r() < 0.2) asign.add(`Z_${el(mods)}_REPORTES_GLOBAL`); // rol sin país
+      for (const rol of asign) { roles.add(rol); agr.push([b, rol, f8(off(-400)), r() < 0.05 ? f8(off(-20)) : '99991231', '', '']); }
+    }
+  }
+  for (const [b, t] of [['RFC_INTEGRA', 'C'], ['BATCH_JOBS', 'B'], ['WF-BATCH', 'B'], ['SOPORTE_EXT', 'A'], ['CONSULTOR01', 'A']]) {
+    usr.push([b, t, '0', '20200101', '99991231', t === 'A' ? f8(off(-3)) : '00000000', '', 'TECNICOS']);
+    agr.push([b, 'Z_BC_SOPORTE', '20200101', '99991231', '', '']); roles.add('Z_BC_SOPORTE');
+  }
+  const org = [['AGR_NAME', 'VARBL', 'LOW', 'HIGH']];
+  for (const rol of roles) {
+    const m = /^Z(UY|CL|AR)_/.exec(rol);
+    if (m) org.push([rol, '$BUKRS', SOC[m[1]], '']);
+    else if (rol.includes('GLOBAL')) Object.values(SOC).forEach((v) => org.push([rol, '$BUKRS', v, '']));
+  }
+  const csv = (x) => x.map((f) => f.join(';')).join('\n');
+  return { USR02: csv(usr), AGR_USERS: csv(agr), AGR_1252: csv(org), ref };
+}
+async function cargarDemo() {
+  const d = generarDemo();
+  for (const f of ['USR02', 'AGR_USERS', 'AGR_1252']) {
+    const filas = leerTexto(d[f]);
+    const fe = filaEncabezado(f, filas);
+    const tabla = armarTabla({ filas }, fe);
+    const r = procesar(f, tabla, mapeoSugerido(f, tabla.enc));
+    S.datos[f] = { regs: r.regs, meta: { archivo: `demo_${f}.csv`, sha: await sha256(new TextEncoder().encode(d[f])), leidas: r.leidas, rechazadas: r.rechazadas, duplicadas: r.duplicadas, adv: r.adv, cargado: new Date().toLocaleString('es-UY') } };
+  }
+  S.fechaRef = d.ref;
+  S.demo = true;
+  aplicarSugeridas();
+  recalcular();
+}
+
+if (!window.Papa || !window.XLSX) {
+  document.getElementById('app').innerHTML = '<div class="aviso crit"><b>No se pudieron cargar las librerías de lectura</b>Esta página necesita acceso a cdnjs.cloudflare.com para leer CSV y Excel. Verificá la conexión o el proxy.</div>';
+} else {
+  render();
+}
+</script>
+</body>
+</html>
