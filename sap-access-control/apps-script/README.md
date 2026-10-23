@@ -77,6 +77,20 @@ ventas (AGR_1252), parámetros de usuario (USR05), partes de nombres de roles y 
 Las tablas se cargan completas, tal como salen de SE16N: la app toma las columnas que necesita e ignora
 el resto, incluidas las de contraseñas, que nunca se leen ni se guardan.
 
+## Riesgos y SoD
+
+La pestaña **Riesgos y SoD** (paso 5) evalúa reglas sobre las cuentas del universo:
+
+- **Capacidades:** operaciones definidas por transacciones (alcanza una autorizada por S_TCODE) y condiciones
+  sobre objetos de autorización (todas). Sintaxis de condición, una autorización por línea:
+  `OBJETO CAMPO=v1,v2 CAMPO2=+` (`+` = cualquier valor no vacío; alternativas con `||`).
+- **Reglas:** críticas (una capacidad) o SoD (dos capacidades), con severidad y estado propuesta/confirmada.
+- **Hallazgos:** usuario × regla con la evidencia (roles que dan cada parte), estado (identificado, bajo
+  análisis, corregido, mitigado, aceptado), nota, fecha y responsable. Exportables a CSV.
+- La propuesta inicial (14 capacidades, 13 reglas) se basa en objetos estándar de SAP y debe validarse.
+  Todo es editable y se exporta/importa en JSON (`RIESGOS_BASE` para fijarlo como base).
+- Es nivel 2 (autorización configurada): indica una capacidad probable, no una verificación en el sistema.
+
 ## Seguridad
 
 El repositorio es **público**. Nunca subir extracciones reales, universos exportados ni configuraciones con

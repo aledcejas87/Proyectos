@@ -125,6 +125,7 @@ details summary { cursor: pointer; }
     <button data-tab="parametrizacion"><span class="paso">2</span>Parametrización</button>
     <button data-tab="universo"><span class="paso">3</span>Definir universo</button>
     <button data-tab="analisis"><span class="paso">4</span>Análisis</button>
+    <button data-tab="riesgos"><span class="paso">5</span>Riesgos y SoD</button>
     <button data-tab="registro"><span class="paso">i</span>Registro y ayuda</button>
   </nav>
 </header>
@@ -702,6 +703,7 @@ const S = {
   param: null, paramOrigen: '',
   ui: { uFiltro: 'pendientes', uTexto: '', uPag: 0, uSel: new Set(),
         pEstado: 'sinconfirmar', pUso: 'conuso', pTipo: '', pCampo: '', pOrigen: '', pPais: '', pTexto: '', pPag: 0, pSel: new Set(), pSaltados: new Set(),
+        rkRegla: '', rkSev: '', rkEstado: '', rkPais: '', rkTexto: '', rkSoloConf: false, rkPag: 0,
         qModo: 'tx', qCodigo: '', qCampo: '', qValor: '',
         aFiltro: '', aTexto: '', aPag: 0, aOrden: ['bname', 1], rTexto: '', rPag: 0, rOrden: ['enUniverso', -1] },
   calc: null,
@@ -963,6 +965,7 @@ function calcular() {
   }
   const huerfanas = [...new Set(asig.filter((a) => !porNombre[a.uname]).map((a) => a.uname))];
   S.calc = { hayTx, txMenu, stcode, autRol, textoTx, infoRol, catalogo, catPorK, tagsRol, cuentas, porNombre, universo, roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
+  S.calc.riesgos = evaluarRiesgos();
 }
 
 
@@ -1089,6 +1092,226 @@ function vistaMapeo() {
     <div class="fila" style="margin-top:12px"><button class="btn" data-accion="validar">Validar</button></div>
     ${res}
   </div>`;
+}
+
+// ------------------------------------------------------- riesgos y SoD
+// Capacidades: operaciones de negocio definidas por transacciones (alcanza
+// una) y condiciones sobre objetos de autorización (todas). Cada línea de
+// condición describe UNA autorización: "OBJETO CAMPO=v1,v2 CAMPO2=+"
+// ("+" = cualquier valor no vacío); alternativas en la misma línea con " || ".
+// Reglas: críticas (una capacidad) o SoD (dos capacidades incompatibles).
+// Es nivel 2 (autorización configurada): indica capacidad probable, no
+// verificada en el sistema.
+const CLAVE_RIESGOS = 'sapac.scienza.riesgos.v1';
+const RIESGOS_BASE = null; // pegar acá el JSON exportado para fijarlo como base
+const ESTADOS_HALLAZGO = { identificado: 'Identificado', analisis: 'Bajo análisis', corregido: 'Corregido', mitigado: 'Mitigado', aceptado: 'Aceptado' };
+const SEVERIDADES = { alta: 'Alta', media: 'Media', baja: 'Baja' };
+function riesgosPropuestos() {
+  const cap = (id, nombre, tx, obj) => ({ id, nombre, tx, obj, origen: 'propuesta' });
+  const regla = (id, nombre, tipo, a, b, severidad, desc) => ({ id, nombre, tipo, a, b: b || '', severidad, desc, estado: 'propuesta' });
+  return {
+    version: 1,
+    capacidades: [
+      cap('ADM_ROLES', 'Administrar roles', ['PFCG'], ['S_USER_AGR ACTVT=01,02,06 ACT_GROUP=+']),
+      cap('ADM_USUARIOS', 'Administrar usuarios', ['SU01', 'SU10'], ['S_USER_GRP ACTVT=01,02,05,06 CLASS=+']),
+      cap('MOD_TABLAS', 'Modificar tablas', ['SM30', 'SM31'], ['S_TABU_DIS ACTVT=02 DICBERCLS=+ || S_TABU_NAM ACTVT=02 TABLE=+']),
+      cap('DESARROLLO', 'Desarrollar o modificar programas', ['SE38', 'SE80', 'SE24', 'SE37'], ['S_DEVELOP ACTVT=01,02']),
+      cap('TODAS_TX', 'Ejecutar cualquier transacción', [], ['S_TCODE TCD=*']),
+      cap('PROVEEDOR', 'Crear o modificar proveedores', ['XK01', 'XK02', 'FK01', 'FK02', 'MK01', 'MK02', 'BP'], ['F_LFA1_APP ACTVT=01,02']),
+      cap('PAGO', 'Ejecutar pagos a proveedores', ['F110', 'F-53', 'F-58', 'F-48'], []),
+      cap('PEDIDO_COMPRA', 'Crear o modificar pedidos de compra', ['ME21N', 'ME22N', 'ME21', 'ME22'], ['M_BEST_BSA ACTVT=01,02']),
+      cap('LIBERA_PEDIDO', 'Liberar pedidos de compra', ['ME28', 'ME29N'], ['M_EINK_FRG FRGCO=+']),
+      cap('ENTRADA_MERC', 'Registrar entradas de mercancía', ['MIGO', 'MB01', 'MIGO_GR'], ['M_MSEG_BWE ACTVT=01']),
+      cap('FACTURA_PROV', 'Registrar facturas de proveedor', ['MIRO', 'FB60', 'F-43'], []),
+      cap('CLIENTE', 'Crear o modificar clientes', ['XD01', 'XD02', 'FD01', 'FD02', 'VD01', 'VD02', 'BP'], ['F_KNA1_APP ACTVT=01,02']),
+      cap('PEDIDO_VENTA', 'Crear o modificar pedidos de venta', ['VA01', 'VA02'], ['V_VBAK_AAT ACTVT=01,02']),
+      cap('COBRO', 'Registrar cobros de clientes', ['F-28', 'F-26', 'FBZ1'], []),
+    ],
+    reglas: [
+      regla('C_ADM_ROLES', 'Puede administrar roles', 'critica', 'ADM_ROLES', '', 'alta', 'Crear, modificar o borrar roles permite otorgarse cualquier acceso.'),
+      regla('C_ADM_USUARIOS', 'Puede administrar usuarios', 'critica', 'ADM_USUARIOS', '', 'alta', 'Crear o modificar usuarios y sus asignaciones.'),
+      regla('C_DESARROLLO', 'Puede desarrollar en productivo', 'critica', 'DESARROLLO', '', 'alta', 'Modificar programas en el sistema productivo.'),
+      regla('C_TODAS_TX', 'Puede ejecutar cualquier transacción', 'critica', 'TODAS_TX', '', 'alta', 'S_TCODE = *.'),
+      regla('C_MOD_TABLAS', 'Puede modificar tablas', 'critica', 'MOD_TABLAS', '', 'media', 'Mantenimiento directo de tablas.'),
+      regla('S_PROV_PAGO', 'Proveedores + pagos', 'sod', 'PROVEEDOR', 'PAGO', 'alta', 'Puede crear un proveedor y pagarle.'),
+      regla('S_PED_FACT', 'Pedido de compra + factura de proveedor', 'sod', 'PEDIDO_COMPRA', 'FACTURA_PROV', 'alta', 'Puede comprar y registrar la factura de la misma compra.'),
+      regla('S_PED_LIB', 'Pedido de compra + liberación', 'sod', 'PEDIDO_COMPRA', 'LIBERA_PEDIDO', 'alta', 'Puede crear y aprobar sus propios pedidos.'),
+      regla('S_PED_EM', 'Pedido de compra + entrada de mercancía', 'sod', 'PEDIDO_COMPRA', 'ENTRADA_MERC', 'media', 'Puede comprar y dar por recibida la mercadería.'),
+      regla('S_PROV_PED', 'Proveedores + pedido de compra', 'sod', 'PROVEEDOR', 'PEDIDO_COMPRA', 'media', 'Puede crear un proveedor y comprarle.'),
+      regla('S_PROV_FACT', 'Proveedores + factura de proveedor', 'sod', 'PROVEEDOR', 'FACTURA_PROV', 'media', 'Puede crear un proveedor y registrarle facturas.'),
+      regla('S_CLI_COBRO', 'Clientes + cobros', 'sod', 'CLIENTE', 'COBRO', 'media', 'Puede crear un cliente y registrar sus cobros.'),
+      regla('S_USU_ROL', 'Usuarios + roles', 'sod', 'ADM_USUARIOS', 'ADM_ROLES', 'alta', 'Puede crear roles y asignárselos.'),
+    ],
+    hallazgos: {},
+  };
+}
+function cargarRiesgos() {
+  const local = leerLocal(CLAVE_RIESGOS, null);
+  if (local) return local;
+  return RIESGOS_BASE ? JSON.parse(JSON.stringify(RIESGOS_BASE)) : riesgosPropuestos();
+}
+const guardarRiesgos = () => guardarLocal(CLAVE_RIESGOS, S.riesgos);
+
+function parsearCondicion(linea) {
+  return linea.split('||').map((alt) => {
+    const partes = alt.trim().split(/\s+/).filter(Boolean);
+    return {
+      obj: (partes.shift() || '').toUpperCase(),
+      conds: partes.map((p) => { const [c, v = ''] = p.split('='); return { campo: c.toUpperCase(), valores: v === '+' ? '+' : v.toUpperCase().split(',').filter(Boolean) }; }),
+    };
+  }).filter((a) => a.obj);
+}
+const esVacio = (v) => !v.low || v.low === "' '";
+
+// Evalúa reglas sobre las cuentas del universo.
+function evaluarRiesgos() {
+  const C = S.calc, R = S.riesgos;
+  if (!C.hayTx) return null;
+  const hay1251 = !!S.datos.AGR_1251;
+  // Instancias de autorización por rol: rol → objeto → [ {campo: [valores]} ]
+  const inst = {};
+  for (const [agr, filas] of Object.entries(C.autRol)) {
+    const porAuth = {};
+    for (const x of filas) {
+      const k = `${x.obj}|${x.auth}`;
+      const i = porAuth[k] = porAuth[k] || { obj: x.obj, campos: {} };
+      (i.campos[x.campo] = i.campos[x.campo] || []).push(x);
+    }
+    inst[agr] = {};
+    for (const i of Object.values(porAuth)) (inst[agr][i.obj] = inst[agr][i.obj] || []).push(i.campos);
+  }
+  const cubre = (vals, req) => (req === '+' ? vals.some((v) => !esVacio(v)) : req.some((r) => vals.some((v) => v.low === '*' || coincide(r, v))));
+  const capPorId = Object.fromEntries(R.capacidades.map((c) => [c.id, { ...c, lineas: c.obj.map(parsearCondicion) }]));
+  const evaluar = (c, cap) => {
+    if (c.perfilesDirectos.includes('SAP_ALL')) return { ok: true, via: ['SAP_ALL (perfil directo)'] };
+    const via = [];
+    if (cap.tx.length) {
+      const roles = c.vigentes.filter((agr) => hay1251 ? (C.stcode[agr] || []).some((v) => cap.tx.some((t) => coincide(t, v))) : (C.txMenu[agr] || []).some((t) => cap.tx.includes(t.tcode)));
+      if (!roles.length) return { ok: false };
+      via.push(`Transacción: ${roles.join(', ')}`);
+    }
+    for (const alts of cap.lineas) {
+      let roles = [];
+      for (const alt of alts) roles = roles.concat(c.vigentes.filter((agr) => (inst[agr] && inst[agr][alt.obj] || []).some((campos) => alt.conds.every((q) => campos[q.campo] && cubre(campos[q.campo], q.valores)))));
+      if (!roles.length) return { ok: false };
+      via.push(`${alts.map((a) => a.obj).join(' o ')}: ${[...new Set(roles)].join(', ')}`);
+    }
+    return { ok: true, via };
+  };
+  const hallazgos = [], cuentasPorCap = {};
+  for (const c of C.universo) {
+    const cache = {};
+    const tiene = (id) => (cache[id] = cache[id] || (capPorId[id] ? evaluar(c, capPorId[id]) : { ok: false }));
+    for (const id of Object.keys(capPorId)) if (tiene(id).ok) cuentasPorCap[id] = (cuentasPorCap[id] || 0) + 1;
+    for (const r of R.reglas) {
+      const a = tiene(r.a);
+      if (!a.ok) continue;
+      if (r.tipo === 'sod') { const b = tiene(r.b); if (!b.ok) continue; hallazgos.push({ r, c, ev: [[r.a, a.via], [r.b, b.via]] }); }
+      else hallazgos.push({ r, c, ev: [[r.a, a.via]] });
+    }
+  }
+  return { hallazgos, capPorId, cuentasPorCap };
+}
+const estadoHallazgo = (h) => (S.riesgos.hallazgos[`${h.r.id}|${h.c.bname}`] || { estado: 'identificado' });
+
+function vistaRiesgos() {
+  const C = S.calc, U = S.ui, R = S.riesgos;
+  const intro = `<h1>Riesgos y segregación de funciones</h1>
+  <p class="sub">Reglas críticas (una capacidad) y de SoD (dos capacidades incompatibles) evaluadas sobre las cuentas del universo. Cada capacidad combina transacciones autorizadas (S_TCODE) y objetos de autorización (AGR_1251). Es <b>nivel 2</b>: indica una capacidad probable según la configuración de los roles, no una verificación en el sistema. La propuesta inicial está basada en objetos estándar de SAP y hay que validarla con Seguridad o Sothis.</p>`;
+  if (!C || !C.riesgos) return intro + '<div class="aviso warn"><b>Faltan datos</b>Cargá AGR_TCODES y AGR_1251 (paso 1) y definí el universo (pasos 2 y 3).</div>';
+  const todos = C.riesgos.hallazgos;
+  let lista = todos;
+  if (U.rkSoloConf) lista = lista.filter((x) => x.r.estado === 'confirmada');
+  if (U.rkRegla) lista = lista.filter((x) => x.r.id === U.rkRegla);
+  if (U.rkSev) lista = lista.filter((x) => x.r.severidad === U.rkSev);
+  if (U.rkEstado) lista = lista.filter((x) => estadoHallazgo(x).estado === U.rkEstado);
+  if (U.rkPais) lista = lista.filter((x) => x.c.pais.includes(U.rkPais));
+  if (U.rkTexto) { const t = U.rkTexto.toUpperCase(); lista = lista.filter((x) => x.c.bname.includes(t) || x.c.nombre.toUpperCase().includes(t)); }
+  const pg = paginar(lista, U.rkPag, 100);
+  const porRegla = R.reglas.map((r) => { const hs = todos.filter((x) => x.r.id === r.id); return { r, n: hs.length, uy: hs.filter((x) => x.c.pais.includes('UY')).length, cl: hs.filter((x) => x.c.pais.includes('CL')).length, abiertos: hs.filter((x) => ['identificado', 'analisis'].includes(estadoHallazgo(x).estado)).length }; });
+  const usuariosAlta = new Set(todos.filter((x) => x.r.severidad === 'alta').map((x) => x.c.bname)).size;
+  const abiertos = todos.filter((x) => ['identificado', 'analisis'].includes(estadoHallazgo(x).estado)).length;
+  const tagSev = (s) => `<span class="sev ${s === 'baja' ? 'info' : s}"><b>${s === 'alta' ? '▲' : s === 'media' ? '●' : 'i'}</b>${SEVERIDADES[s]}</span>`;
+  const capNombre = (id) => (R.capacidades.find((c) => c.id === id) || { nombre: id }).nombre;
+  const optCaps = (sel) => R.capacidades.map((c) => `<option value="${h(c.id)}" ${sel === c.id ? 'selected' : ''}>${h(c.nombre)}</option>`).join('');
+
+  return `${intro}
+  <div class="grid g6">
+    ${stat('Reglas', R.reglas.length, `${R.reglas.filter((r) => r.estado === 'confirmada').length} confirmada(s)`)}
+    ${stat('Hallazgos', todos.length, 'regla × cuenta')}
+    ${stat('Cuentas con riesgo alto', usuariosAlta, 'del universo')}
+    ${stat('Hallazgos sin tratar', abiertos, 'identificados o en análisis')}
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-h"><h2>Resultados por regla</h2></div>
+    <div class="tabla-wrap"><table class="t"><thead><tr><th>Regla</th><th>Tipo</th><th>Severidad</th><th>Estado de la regla</th><th class="num">Cuentas</th><th class="num">UY</th><th class="num">CL</th><th class="num">Sin tratar</th><th></th></tr></thead><tbody>
+    ${porRegla.map((x) => `<tr><td><b>${h(x.r.nombre)}</b><div class="peq t2">${h(capNombre(x.r.a))}${x.r.tipo === 'sod' ? ' + ' + h(capNombre(x.r.b)) : ''}</div></td><td>${x.r.tipo === 'sod' ? 'SoD' : 'Crítica'}</td><td>${tagSev(x.r.severidad)}</td><td>${x.r.estado === 'confirmada' ? '<span class="tag ok"><i></i>Confirmada</span>' : '<span class="tag warn"><i></i>Propuesta</span>'}</td><td class="num">${n(x.n)}</td><td class="num">${n(x.uy)}</td><td class="num">${n(x.cl)}</td><td class="num">${n(x.abiertos)}</td><td>${x.n ? `<button class="btn mini" data-accion="rk-ver" data-regla="${h(x.r.id)}">Ver</button>` : ''}</td></tr>`).join('')}
+    </tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-h"><h2>Hallazgos</h2><button class="btn" data-accion="rk-exportar-csv">Exportar CSV</button></div>
+    <div class="fila" style="margin-bottom:8px">
+      <select class="campo" id="rkRegla"><option value="">Todas las reglas</option>${R.reglas.map((r) => `<option value="${h(r.id)}" ${U.rkRegla === r.id ? 'selected' : ''}>${h(r.nombre)}</option>`).join('')}</select>
+      <select class="campo" id="rkSev"><option value="">Toda severidad</option>${Object.entries(SEVERIDADES).map(([k, v]) => `<option value="${k}" ${U.rkSev === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select class="campo" id="rkEstado"><option value="">Todo estado</option>${Object.entries(ESTADOS_HALLAZGO).map(([k, v]) => `<option value="${k}" ${U.rkEstado === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select class="campo" id="rkPais"><option value="">UY y CL</option><option value="UY" ${U.rkPais === 'UY' ? 'selected' : ''}>Uruguay</option><option value="CL" ${U.rkPais === 'CL' ? 'selected' : ''}>Chile</option></select>
+      <input class="campo" id="rkTexto" placeholder="Buscar usuario o nombre…" value="${h(U.rkTexto)}">
+      <label class="fila peq"><input type="checkbox" id="rkSoloConf" ${U.rkSoloConf ? 'checked' : ''}> Solo reglas confirmadas</label>
+    </div>
+    <div class="tabla-wrap"><table class="t"><thead><tr><th>Usuario</th><th>País</th><th>Regla</th><th>Severidad</th><th>Evidencia (roles)</th><th>Estado</th><th>Nota</th></tr></thead><tbody>
+    ${pg.items.map((x) => { const e = estadoHallazgo(x), k = `${x.r.id}|${x.c.bname}`; return `<tr>
+      <td><button class="link mono" data-ficha="${h(x.c.bname)}">${h(x.c.bname)}</button>${x.c.nombre ? `<div class="peq t2">${h(x.c.nombre)}</div>` : ''}${x.c.bloqueada ? '<div><span class="tag crit"><i></i>Bloqueada</span></div>' : ''}</td>
+      <td>${x.c.pais.map(tagPais).join(' ')}</td>
+      <td>${h(x.r.nombre)}${x.r.estado !== 'confirmada' ? ' <span class="peq muted">(propuesta)</span>' : ''}</td>
+      <td>${tagSev(x.r.severidad)}</td>
+      <td class="peq">${x.ev.map(([cap, via]) => `<b>${h(capNombre(cap))}</b><div class="mono t2">${via.map(h).join('<br>')}</div>`).join('')}</td>
+      <td><select class="campo" data-rk-estado="${h(k)}">${Object.entries(ESTADOS_HALLAZGO).map(([kk, v]) => `<option value="${kk}" ${e.estado === kk ? 'selected' : ''}>${v}</option>`).join('')}</select>${e.fecha ? `<div class="peq muted">${new Date(e.fecha).toLocaleDateString('es-UY')}${e.por ? ' · ' + h(e.por) : ''}</div>` : ''}</td>
+      <td><input class="campo" style="min-width:180px" data-rk-nota="${h(k)}" value="${h(e.nota || '')}" placeholder="Motivo, mitigación…"></td>
+    </tr>`; }).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Sin hallazgos con este filtro.</td></tr>'}
+    </tbody></table></div>
+    ${pie(lista, pg, 'rk')}
+  </div>
+  <div class="card">
+    <div class="card-h"><h2>Reglas</h2><button class="btn" data-accion="rk-nueva-regla">Agregar regla</button></div>
+    <div class="tabla-wrap"><table class="t"><thead><tr><th>Nombre</th><th>Tipo</th><th>Capacidad A</th><th>Capacidad B (SoD)</th><th>Severidad</th><th>Estado</th><th>Descripción</th><th></th></tr></thead><tbody>
+    ${R.reglas.map((r, i) => `<tr>
+      <td><input class="campo" data-rk-regla="${i}" data-prop="nombre" value="${h(r.nombre)}"></td>
+      <td><select class="campo" data-rk-regla="${i}" data-prop="tipo"><option value="critica" ${r.tipo === 'critica' ? 'selected' : ''}>Crítica</option><option value="sod" ${r.tipo === 'sod' ? 'selected' : ''}>SoD</option></select></td>
+      <td><select class="campo" data-rk-regla="${i}" data-prop="a">${optCaps(r.a)}</select></td>
+      <td>${r.tipo === 'sod' ? `<select class="campo" data-rk-regla="${i}" data-prop="b">${optCaps(r.b)}</select>` : '<span class="muted">—</span>'}</td>
+      <td><select class="campo" data-rk-regla="${i}" data-prop="severidad">${Object.entries(SEVERIDADES).map(([k, v]) => `<option value="${k}" ${r.severidad === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
+      <td><select class="campo" data-rk-regla="${i}" data-prop="estado"><option value="propuesta" ${r.estado !== 'confirmada' ? 'selected' : ''}>Propuesta</option><option value="confirmada" ${r.estado === 'confirmada' ? 'selected' : ''}>Confirmada</option></select></td>
+      <td><input class="campo" data-rk-regla="${i}" data-prop="desc" value="${h(r.desc || '')}"></td>
+      <td><button class="btn mini peligro" data-accion="rk-borrar-regla" data-i="${i}">Quitar</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-h"><h2>Capacidades</h2><button class="btn" data-accion="rk-nueva-cap">Agregar capacidad</button></div>
+    <p class="t2 peq" style="margin-top:0">Transacciones: alcanza con una autorizada por S_TCODE (si no hay AGR_1251, se usa el menú). Condiciones: una línea por autorización requerida, todas deben cumplirse: <span class="mono">OBJETO CAMPO=valor1,valor2 CAMPO2=+</span> ("+" = cualquier valor no vacío; un valor * en el rol cubre todo). Alternativas en la misma línea con <span class="mono">||</span>. Un usuario con SAP_ALL cumple todas.</p>
+    <div class="tabla-wrap"><table class="t"><thead><tr><th>Capacidad</th><th>Transacciones</th><th>Condiciones de autorización</th><th class="num">Cuentas que la tienen</th><th></th></tr></thead><tbody>
+    ${R.capacidades.map((c, i) => `<tr>
+      <td><input class="campo" data-rk-cap="${i}" data-prop="nombre" value="${h(c.nombre)}"><div class="peq muted mono">${h(c.id)}</div></td>
+      <td><input class="campo mono" style="min-width:200px" data-rk-cap="${i}" data-prop="tx" value="${h(c.tx.join(', '))}"></td>
+      <td><textarea class="campo mono" rows="${Math.max(1, c.obj.length)}" style="min-width:360px" data-rk-cap="${i}" data-prop="obj">${h(c.obj.join('\n'))}</textarea></td>
+      <td class="num">${n(C.riesgos.cuentasPorCap[c.id] || 0)}</td>
+      <td><button class="btn mini peligro" data-accion="rk-borrar-cap" data-i="${i}">Quitar</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>
+  </div>
+  <div class="card"><div class="card-h"><h2>Guardar y respaldar</h2></div>
+    <p class="t2 peq" style="margin-top:0">Reglas, capacidades y estados de los hallazgos se guardan en este navegador. Exportalos como respaldo o para fijarlos como base de la aplicación.</p>
+    <div class="fila">
+      <button class="btn" data-accion="rk-exportar">Exportar reglas y hallazgos (JSON)</button>
+      <label class="btn">Importar<input type="file" class="oculto" id="rkImportar" accept=".json"></label>
+      <button class="btn peligro" data-accion="rk-restaurar">Restaurar propuesta inicial</button>
+    </div>
+  </div>`;
+}
+function seccionRiesgos(c) {
+  const hs = S.calc.riesgos ? S.calc.riesgos.hallazgos.filter((x) => x.c === c) : [];
+  if (!S.calc.riesgos) return '';
+  return `<div class="card"><h2>Riesgos (${n(hs.length)})</h2>${hs.length ? `<ul style="margin:0;padding-left:18px">${hs.map((x) => `<li><b>${h(x.r.nombre)}</b> <span class="peq t2">(${SEVERIDADES[x.r.severidad]} · ${ESTADOS_HALLAZGO[estadoHallazgo(x).estado]}${x.r.estado !== 'confirmada' ? ' · regla propuesta' : ''})</span></li>`).join('')}</ul>` : '<p class="t2" style="margin:0">Sin hallazgos con las reglas actuales.</p>'}</div>`;
 }
 
 // ------------------------------------------------- vista: parametrización
@@ -1499,6 +1722,7 @@ function fichaCuenta(b) {
     <div class="card"><h2>Roles (${n(c.vigentes.length)} vigentes de ${n(c.roles.length)} filas)</h2>
       <div class="tabla-wrap"><table class="t"><thead><tr><th>Rol</th><th>Estado</th><th>Desde</th><th>Hasta</th><th>COL_FLAG</th><th>País (pistas)</th></tr></thead><tbody>${roles || '<tr><td colspan="6" class="muted">Sin roles.</td></tr>'}</tbody></table></div>
     </div>
+    ${seccionRiesgos(c)}
     ${S.calc.hayTx ? seccionTransacciones(c) : ''}
     <p class="t2 peq">${S.calc.hayTx ? 'Menú (AGR_TCODES) y S_TCODE (AGR_1251) son nivel 1 y 2: asignación y autorización configurada. No prueban que la transacción se pueda completar (faltan los demás objetos que chequea cada transacción) ni que se use. Falta Fiori y uso real.' : 'Falta extraer: transacciones (AGR_TCODES), autorizaciones (AGR_1251), Fiori y uso real.'}</p>`);
 }
@@ -1557,7 +1781,7 @@ function render() {
   const app = document.getElementById('app');
   const foco = document.activeElement && document.activeElement.id;
   const pos = foco && document.activeElement.selectionStart;
-  app.innerHTML = S.tab === 'cargar' ? vistaCargar() : S.tab === 'parametrizacion' ? vistaParametrizacion() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : vistaRegistro();
+  app.innerHTML = S.tab === 'cargar' ? vistaCargar() : S.tab === 'parametrizacion' ? vistaParametrizacion() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : S.tab === 'riesgos' ? vistaRiesgos() : vistaRegistro();
   if (S.tab === 'cargar') document.getElementById('mapeo').innerHTML = vistaMapeo();
   if (foco) { const el = document.getElementById(foco); if (el) { el.focus(); try { if (pos != null) el.setSelectionRange(pos, pos); } catch (e) { /* no aplica */ } } }
 }
@@ -1705,6 +1929,19 @@ document.addEventListener('click', (e) => {
   if (a === 'cerrar-cajon') document.getElementById('cajon-raiz').innerHTML = '';
   else if (a === 'quitar') { S.datos[t.dataset.f] = null; recalcular(); }
   else if (a === 'cancelar-mapeo') { S.pendiente = null; render(); }
+  else if (a === 'rk-ver') { U.rkRegla = t.dataset.regla; U.rkPag = 0; render(); document.getElementById('rkRegla').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  else if (a === 'rk-nueva-regla') { const cap = S.riesgos.capacidades[0]; S.riesgos.reglas.push({ id: 'R' + Date.now(), nombre: 'Nueva regla', tipo: 'critica', a: cap ? cap.id : '', b: '', severidad: 'media', desc: '', estado: 'propuesta' }); guardarRiesgos(); recalcular(); }
+  else if (a === 'rk-borrar-regla') { if (confirm('¿Quitar esta regla?')) { S.riesgos.reglas.splice(+t.dataset.i, 1); guardarRiesgos(); recalcular(); } }
+  else if (a === 'rk-nueva-cap') { S.riesgos.capacidades.push({ id: 'CAP' + Date.now(), nombre: 'Nueva capacidad', tx: [], obj: [], origen: 'manual' }); guardarRiesgos(); recalcular(); }
+  else if (a === 'rk-borrar-cap') {
+    const c = S.riesgos.capacidades[+t.dataset.i];
+    if (S.riesgos.reglas.some((r) => r.a === c.id || r.b === c.id)) return alert('Hay reglas que usan esta capacidad: quitalas o cambialas primero.');
+    if (confirm('¿Quitar esta capacidad?')) { S.riesgos.capacidades.splice(+t.dataset.i, 1); guardarRiesgos(); recalcular(); }
+  }
+  else if (a === 'rk-exportar') descargar(`riesgos_sod_scienza_${hoyISO()}.json`, JSON.stringify(S.riesgos, null, 2), 'application/json');
+  else if (a === 'rk-restaurar') { if (confirm('¿Volver a la propuesta inicial de reglas y capacidades? Se conservan los estados y notas de los hallazgos.')) { const hz = S.riesgos.hallazgos; S.riesgos = riesgosPropuestos(); S.riesgos.hallazgos = hz; guardarRiesgos(); recalcular(); } }
+  else if (a === 'rk-exportar-csv') descargarCsv(`hallazgos_riesgos_${S.fechaRef}.csv`, ['Usuario', 'Nombre', 'Pais', 'Bloqueada', 'Regla', 'Tipo', 'Severidad', 'Estado regla', 'Evidencia', 'Estado hallazgo', 'Nota', 'Actualizado', 'Por', 'Fecha extraccion'],
+      S.calc.riesgos.hallazgos.map((x) => { const e = estadoHallazgo(x); return [x.c.bname, x.c.nombre, x.c.pais.join('+'), x.c.bloqueada ? 'Si' : 'No', x.r.nombre, x.r.tipo === 'sod' ? 'SoD' : 'Critica', SEVERIDADES[x.r.severidad], x.r.estado, x.ev.map(([cap, via]) => cap + ': ' + via.join(' / ')).join(' | '), ESTADOS_HALLAZGO[e.estado], e.nota || '', e.fecha ? e.fecha.slice(0, 10) : '', e.por || '', S.fechaRef]; }));
   else if (a === 'q-buscar') { ['qCodigo', 'qCampo', 'qValor'].forEach((id) => { const el = document.getElementById(id); if (el) U[id] = el.value; }); render(); }
   else if (a === 'p-saltar') { U.pSaltados.add(t.dataset.k); render(); }
   else if (a === 'p-sel-pagina') { document.querySelectorAll('[data-psel]').forEach((x) => U.pSel.add(x.dataset.psel)); render(); }
@@ -1761,6 +1998,27 @@ document.addEventListener('change', async (e) => {
     S.param[lista] = t.checked ? [...new Set([...S.param[lista], c])] : S.param[lista].filter((x) => x !== c);
     guardarParam(); return recalcular();
   }
+  if (t.dataset.rkEstado || t.dataset.rkNota) {
+    const k = t.dataset.rkEstado || t.dataset.rkNota, e = S.riesgos.hallazgos[k] || { estado: 'identificado' };
+    if (t.dataset.rkEstado) e.estado = t.value; else e.nota = t.value.trim();
+    Object.assign(e, { fecha: new Date().toISOString(), por: S.param.responsable || '' });
+    S.riesgos.hallazgos[k] = e; guardarRiesgos(); return render();
+  }
+  if (t.dataset.rkRegla !== undefined) { const r = S.riesgos.reglas[+t.dataset.rkRegla]; r[t.dataset.prop] = t.value.trim(); if (r.tipo === 'sod' && !r.b) r.b = S.riesgos.capacidades.find((c) => c.id !== r.a)?.id || ''; guardarRiesgos(); return recalcular(); }
+  if (t.dataset.rkCap !== undefined) {
+    const c = S.riesgos.capacidades[+t.dataset.rkCap], prop = t.dataset.prop;
+    if (prop === 'tx') c.tx = t.value.toUpperCase().split(/[\s,;]+/).filter(Boolean);
+    else if (prop === 'obj') c.obj = t.value.split('\n').map((x) => x.trim()).filter(Boolean);
+    else c[prop] = t.value.trim();
+    c.origen = 'manual'; guardarRiesgos(); return recalcular();
+  }
+  if (['rkRegla', 'rkSev', 'rkEstado', 'rkPais'].includes(t.id)) { U[t.id] = t.value; U.rkPag = 0; return render(); }
+  if (t.id === 'rkSoloConf') { U.rkSoloConf = t.checked; U.rkPag = 0; return render(); }
+  if (t.id === 'rkImportar' && t.files[0]) {
+    try { const x = JSON.parse(await t.files[0].text()); if (!Array.isArray(x.reglas) || !Array.isArray(x.capacidades)) throw new Error('no es un archivo de reglas exportado por esta aplicación'); S.riesgos = Object.assign({ hallazgos: {} }, x); guardarRiesgos(); t.value = ''; recalcular(); }
+    catch (err) { alert('No se pudo importar: ' + err.message); }
+    return;
+  }
   if (t.id === 'qModo') { U.qModo = t.value; return render(); }
   if (['qCodigo', 'qCampo', 'qValor'].includes(t.id)) { U[t.id] = t.value; return render(); }
   if (['pEstado', 'pTipo', 'pCampo', 'pOrigen', 'pPais', 'pUso'].includes(t.id)) { U[t.id] = t.value; U.pPag = 0; return render(); }
@@ -1805,7 +2063,7 @@ document.addEventListener('change', async (e) => {
 let temporizador;
 document.addEventListener('input', (e) => {
   const t = e.target, U = S.ui;
-  const mapa = { uTexto: ['uTexto', 'uPag'], pTexto: ['pTexto', 'pPag'], aTexto: ['aTexto', 'aPag'], rTexto: ['rTexto', 'rPag'] };
+  const mapa = { uTexto: ['uTexto', 'uPag'], pTexto: ['pTexto', 'pPag'], rkTexto: ['rkTexto', 'rkPag'], aTexto: ['aTexto', 'aPag'], rTexto: ['rTexto', 'rPag'] };
   if (!mapa[t.id]) return;
   U[mapa[t.id][0]] = t.value; U[mapa[t.id][1]] = 0;
   clearTimeout(temporizador); temporizador = setTimeout(render, 250);
@@ -1896,6 +2154,7 @@ async function cargarDemo() {
   recalcular();
 }
 
+S.riesgos = cargarRiesgos();
 if (!window.Papa || !window.XLSX) {
   document.getElementById('app').innerHTML = '<div class="aviso crit"><b>No se pudieron cargar las librerías de lectura</b>Esta página necesita acceso a cdnjs.cloudflare.com para leer CSV y Excel. Verificá la conexión o el proxy.</div>';
 } else {
