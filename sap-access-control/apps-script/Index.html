@@ -147,7 +147,7 @@ const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 const fmtFecha = (iso) => { if (!iso) return '—'; if (iso === '9999-12-31') return 'Sin límite'; const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
 const dias = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
-const PAISES = { UY: 'Uruguay', CL: 'Chile', AR: 'Argentina', OTRO: 'Otro país' };
+const PAISES = { UY: 'Uruguay', CL: 'Chile', AR: 'Argentina', OTRO: 'Otro país', NEUTRO: 'Sin país (ignorar)' };
 
 function guardarLocal(clave, valor) { try { localStorage.setItem(clave, JSON.stringify(valor)); } catch (e) { /* almacenamiento no disponible */ } }
 function leerLocal(clave, defecto) { try { const v = localStorage.getItem(clave); return v ? JSON.parse(v) : defecto; } catch (e) { return defecto; } }
@@ -409,7 +409,7 @@ function procesar(fuente, tabla, mapeo) {
   const val = (f, c) => idx[c] === undefined ? null : f[idx[c]];
   const sensibles = tabla.enc.filter(esSensible);
   const adv = [];
-  if (sensibles.length) adv.push(`El archivo traía columnas de credenciales (${sensibles.join(', ')}). Se descartaron y no se usan. Conviene borrar el archivo original y re-exportar sin esos campos.`);
+  if (sensibles.length) adv.push(`Se ignoraron ${sensibles.length} columna(s) de contraseñas o credenciales (${sensibles.join(', ')}): no se leen ni se guardan.`);
   const ordenes = {}, malas = {};
   const fechasDe = { USR02: ['gltgv', 'gltgb', 'trdat', 'erdat'], AGR_USERS: ['desde', 'hasta'] }[fuente] || [];
   for (const c of fechasDe) if (idx[c] !== undefined) { const o = ordenFechas(tabla.filas.map((f) => val(f, c))); ordenes[c] = o.orden; if (o.conflicto) adv.push(`La columna ${c.toUpperCase()} mezcla día/mes y mes/día; se tomó día/mes.`); }
@@ -537,6 +537,7 @@ function calcular() {
   // Índices de reglas
   const rTok = {}, rCont = [], rClase = {}, rOrg = {}, rParam = {};
   for (const r of reglas) {
+    if (r.pais === 'NEUTRO') continue;
     if (r.tipo === 'token') rTok[r.valor] = r.pais;
     else if (r.tipo === 'contiene') rCont.push(r);
     else if (r.tipo === 'clase') rClase[r.valor] = r.pais;
@@ -639,15 +640,26 @@ function calcular() {
   for (const x of regs('USR05')) {
     if (!PARAMS_ORG[x.parid]) continue;
     const k = `${x.parid}=${x.parva}`;
-    const y = paramVals[k] = paramVals[k] || { campo: x.parid, valor: x.parva, usuarios: 0, pais: rParam[k] || '' };
+    const y = paramVals[k] = paramVals[k] || { campo: x.parid, valor: x.parva, usuarios: 0, pais: (reglas.find((r) => r.tipo === 'param' && r.campo === x.parid && r.valor === x.parva) || {}).pais || '' };
     y.usuarios++;
   }
+  const usuariosPorRol = {};
+  for (const a of asig) if (vigencia(a.desde, a.hasta, ref) === 'vigente') (usuariosPorRol[a.agr] = usuariosPorRol[a.agr] || new Set()).add(a.uname);
   const orgVals = {};
   for (const o of org) {
     const k = `${o.varbl}=${o.low}`;
-    const x = orgVals[k] = orgVals[k] || { campo: o.varbl, valor: o.low, roles: new Set() };
+    const x = orgVals[k] = orgVals[k] || { campo: o.varbl, valor: o.low, roles: new Set(), usuarios: new Set() };
     x.roles.add(o.agr);
+    for (const u of usuariosPorRol[o.agr] || []) x.usuarios.add(u);
   }
+  // Preguntas pendientes: valores organizativos o parámetros con usuarios y sin país definido.
+  const conRegla = new Set(reglas.map((r) => claveRegla(r.tipo, r.campo, r.valor)));
+  const pendientes = [
+    ...Object.values(orgVals).filter((o) => o.valor && o.valor !== '*' && campoConPais(o.campo) && o.usuarios.size && !conRegla.has(claveRegla('org', o.campo, o.valor)))
+      .map((o) => ({ tipo: 'org', campo: o.campo, valor: o.valor, roles: o.roles.size, usuarios: o.usuarios.size, ejemplos: [...o.roles].slice(0, 3) })),
+    ...Object.values(regs('USR05').reduce((m, x) => { if (campoConPais(x.parid)) { const k = `${x.parid}=${x.parva}`; (m[k] = m[k] || { tipo: 'param', campo: x.parid, valor: x.parva, roles: 0, usuarios: 0, ejemplos: [] }).usuarios++; } return m; }, {}))
+      .filter((x) => !conRegla.has(claveRegla('param', x.campo, x.valor))),
+  ].sort((a, b) => b.usuarios - a.usuarios);
 
   // Roles: vista inversa
   const roles = {};
@@ -658,7 +670,7 @@ function calcular() {
     else x.fuera++;
   }
   const huerfanas = [...new Set(asig.filter((a) => !porNombre[a.uname]).map((a) => a.uname))];
-  S.calc = { tagsRol, cuentas, porNombre, universo, tokens, clases, orgVals: Object.values(orgVals), paramVals: Object.values(paramVals).sort((a, b) => b.usuarios - a.usuarios), roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
+  S.calc = { pendientes, tagsRol, cuentas, porNombre, universo, tokens, clases, orgVals: Object.values(orgVals), paramVals: Object.values(paramVals).sort((a, b) => b.usuarios - a.usuarios), roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
 }
 
 // Sugerencias iniciales evidentes (se pueden quitar).
@@ -674,24 +686,55 @@ function aplicarSugeridas() {
   guardarConf();
 }
 
-// Campos organizativos donde el prefijo del valor suele indicar el país (UY10, CL01, AR01…).
+// Campos organizativos donde el código identifica la sociedad o la organización.
 const CAMPOS_SOCIEDAD = new Set(['BUKRS', 'VKORG', 'KOKRS', 'EKORG', 'KKBER', 'VKBUR', 'VKGRP', 'BUK', 'VKO', 'CAC', 'EKO', 'KOK', '8BU']);
+const CAMPOS_CENTRO = new Set(['WERKS', 'SWERK', 'BWKEY', 'IWERK', 'WRK']);
+// Campos sobre los que la app hace preguntas cuando aparece un valor sin país.
+const campoConPais = (c) => CAMPOS_SOCIEDAD.has(c) || CAMPOS_CENTRO.has(c);
+
+// Configuración de Scienza, confirmada por el responsable del proyecto (23/10/2026).
+// Se aplica en cada carga a los valores que todavía no tienen regla; lo que se
+// cambie a mano en la pantalla siempre manda.
+const CONFIG_SCIENZA = {
+  prefijos: [[/^UY/, 'UY'], [/^CL/, 'CL'], [/^AR/, 'AR'], [/^SC/, 'AR'], [/^CR/, 'OTRO']],
+  estandarSap: ['IN01', 'CA01', 'IE01', 'US01', 'GB01', '0001', '0000', 'SP01', 'SP02'],
+  centrosUY: ['AEUY', 'FL01', 'FT01', 'WTC1'],
+  centrosCL: ['ACOP', 'CLUC', 'PI01', 'PI02', 'PI03', 'PI04', 'PI05', 'SC01'],
+  oficinasAR: ['GPRE', 'GVEN', 'LICE', 'MAYO'],
+};
+function paisSugerido(campo, valor) {
+  const C = CONFIG_SCIENZA;
+  if (!valor || valor === '*') return '';
+  if (C.estandarSap.includes(valor)) return 'NEUTRO';
+  if (CAMPOS_CENTRO.has(campo)) return C.centrosUY.includes(valor) ? 'UY' : C.centrosCL.includes(valor) ? 'CL' : 'AR';
+  if (campo === 'VKBUR' && C.oficinasAR.includes(valor)) return 'AR';
+  if (CAMPOS_SOCIEDAD.has(campo)) for (const [re, p] of C.prefijos) if (re.test(valor)) return p;
+  return '';
+}
+const claveRegla = (tipo, campo, valor) => `${tipo}|${campo || ''}|${valor}`;
 function aplicarSugeridasOrg() {
-  const pais = (v) => (/^UY/.test(v) ? 'UY' : /^CL/.test(v) ? 'CL' : /^AR/.test(v) ? 'AR' : '');
+  const descartadas = S.conf.sinSugerencia || {};
+  const existentes = new Set(S.conf.reglas.map((r) => claveRegla(r.tipo, r.campo, r.valor)));
   const agregar = (tipo, campo, valor) => {
-    const p = pais(valor);
-    if (!p || !CAMPOS_SOCIEDAD.has(campo)) return;
-    if (S.conf.reglas.some((r) => r.tipo === tipo && r.campo === campo && r.valor === valor)) return;
+    const k = claveRegla(tipo, campo, valor);
+    if (existentes.has(k) || descartadas[k]) return;
+    const p = paisSugerido(campo, valor);
+    if (!p) return;
     S.conf.reglas.push({ tipo, campo, valor, pais: p, auto: true });
+    existentes.add(k);
   };
-  if (S.datos.AGR_1252 && !S.conf.sugeridasOrg) { S.datos.AGR_1252.regs.forEach((o) => agregar('org', o.varbl, o.low)); S.conf.sugeridasOrg = true; }
-  if (S.datos.USR05 && !S.conf.sugeridasParam) { S.datos.USR05.regs.forEach((x) => agregar('param', x.parid, x.parva)); S.conf.sugeridasParam = true; }
+  if (S.datos.AGR_1252) S.datos.AGR_1252.regs.forEach((o) => agregar('org', o.varbl, o.low));
+  if (S.datos.USR05) S.datos.USR05.regs.forEach((x) => agregar('param', x.parid, x.parva));
   guardarConf();
 }
 
 function setRegla(tipo, valor, pais, campo) {
   S.conf.reglas = S.conf.reglas.filter((r) => !(r.tipo === tipo && r.valor === valor && (r.campo || '') === (campo || '')));
   if (pais) S.conf.reglas.push({ tipo, valor, pais, campo: campo || undefined });
+  // Si se deja sin país a mano, no se vuelve a sugerir en la próxima carga.
+  S.conf.sinSugerencia = S.conf.sinSugerencia || {};
+  if (pais) delete S.conf.sinSugerencia[claveRegla(tipo, campo, valor)];
+  else S.conf.sinSugerencia[claveRegla(tipo, campo, valor)] = true;
   guardarConf();
   recalcular();
 }
@@ -729,6 +772,7 @@ function pie(lista, pg, clave) {
 }
 
 // ---------------------------------------------------------- vista: cargar
+const ETIQUETAS_CAMPO = { BUKRS: 'la sociedad', VKORG: 'la organización de ventas', KOKRS: 'la sociedad CO', EKORG: 'la organización de compras', KKBER: 'el área de control de créditos', VKBUR: 'la oficina de ventas', VKGRP: 'el grupo de vendedores', WERKS: 'el centro', SWERK: 'el centro de mantenimiento', BWKEY: 'el ámbito de valoración', IWERK: 'el centro de planificación' };
 const GRUPOS = [['base', 'Necesarios'], ['pistas', 'Pistas de país'], ['complementos', 'Complementos']];
 function vistaCargar() {
   const zona = ([f, def]) => {
@@ -850,6 +894,13 @@ function vistaUniverso() {
     ${stat('Excluidas', cont.excluir, '', 'u-excluidos')}
     ${stat('Decididas a mano', manuales, '', 'u-manuales')}
   </div>
+  ${C.pendientes.length ? (() => { const q = C.pendientes[0]; const nombreCampo = PARAMS_ORG[q.campo] || ETIQUETAS_CAMPO[q.campo] || q.campo; return `<div class="card" style="margin-top:12px;border-left:4px solid var(--accent)">
+    <div class="card-h"><h2>Pregunta pendiente <span class="muted peq">(quedan ${n(C.pendientes.length)})</span></h2></div>
+    <p style="margin:0 0 6px">¿A qué país corresponde <b>${h(nombreCampo)}</b> <span class="mono" style="font-size:15px">${h(q.campo)} = ${h(q.valor)}</span>?</p>
+    <p class="t2 peq" style="margin:0 0 10px">${q.tipo === 'org' ? `Aparece en ${n(q.roles)} rol(es) asignados a ${n(q.usuarios)} usuario(s)${q.ejemplos.length ? `, p. ej. <span class="mono">${q.ejemplos.map(h).join(', ')}</span>` : ''}.` : `Parámetro de usuario (USR05) de ${n(q.usuarios)} usuario(s).`}</p>
+    <div class="fila">${['UY', 'CL', 'AR', 'OTRO', 'NEUTRO'].map((p) => `<button class="btn ${p === 'UY' || p === 'CL' ? 'prim' : ''}" data-responder="${p}" data-tipo="${q.tipo}" data-campo="${h(q.campo)}" data-valor="${h(q.valor)}">${PAISES[p]}</button>`).join('')}
+      <button class="btn mini" data-accion="saltar-pregunta">Después</button></div>
+  </div>`; })() : ''}
   <div class="card" style="margin-top:12px">${barra([['En el universo', cont.incluir, 'var(--s1)'], ['Por revisar', cont.revisar, 'var(--s4)'], ['Excluidas', cont.excluir, 'var(--base)']])}</div>
 
   <div class="card">
@@ -1207,10 +1258,11 @@ function decidir(bnames, d, pais) {
 document.getElementById('tabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-tab]'); if (b) { S.tab = b.dataset.tab; render(); window.scrollTo(0, 0); } });
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-accion],[data-tab-ir],[data-ficha],[data-rol],[data-pag],[data-masivo],[data-decidir],[data-orden],[data-revisar-lote]');
+  const t = e.target.closest('[data-responder],[data-accion],[data-tab-ir],[data-ficha],[data-rol],[data-pag],[data-masivo],[data-decidir],[data-orden],[data-revisar-lote]');
   if (!t) return;
   const U = S.ui;
   if (t.dataset.tabIr) { S.tab = t.dataset.tabIr; render(); window.scrollTo(0, 0); return; }
+  if (t.dataset.responder) return setRegla(t.dataset.tipo, t.dataset.valor, t.dataset.responder, t.dataset.campo);
   if (t.dataset.ficha) return fichaCuenta(t.dataset.ficha);
   if (t.dataset.revisarLote) {
     const x = S.lote[+t.dataset.revisarLote];
@@ -1232,6 +1284,7 @@ document.addEventListener('click', (e) => {
   if (a === 'cerrar-cajon') document.getElementById('cajon-raiz').innerHTML = '';
   else if (a === 'quitar') { S.datos[t.dataset.f] = null; recalcular(); }
   else if (a === 'cancelar-mapeo') { S.pendiente = null; render(); }
+  else if (a === 'saltar-pregunta') { const q = S.calc.pendientes.shift(); S.calc.pendientes.push(q); render(); }
   else if (a === 'validar') { validarPendiente(); render(); }
   else if (a === 'confirmar') confirmarPendiente();
   else if (a === 'demo') cargarDemo();
