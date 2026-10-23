@@ -703,7 +703,7 @@ const S = {
   param: null, paramOrigen: '',
   ui: { uFiltro: 'pendientes', uTexto: '', uPag: 0, uSel: new Set(),
         pEstado: 'sinconfirmar', pUso: 'conuso', pTipo: '', pCampo: '', pOrigen: '', pPais: '', pTexto: '', pPag: 0, pSel: new Set(), pSaltados: new Set(),
-        rkRegla: '', rkSev: '', rkEstado: '', rkPais: '', rkTexto: '', rkSoloConf: false, rkPag: 0, rkSaltados: new Set(),
+        rkRegla: '', rkSev: '', rkEstado: '', rkPais: '', rkTexto: '', rkSoloConf: false, rkPag: 0, rkSaltados: new Set(), rkArea: '', rkPregEstado: '',
         qModo: 'tx', qCodigo: '', qCampo: '', qValor: '',
         aFiltro: '', aTexto: '', aPag: 0, aOrden: ['bname', 1], rTexto: '', rPag: 0, rOrden: ['enUniverso', -1] },
   calc: null,
@@ -1104,9 +1104,15 @@ function vistaMapeo() {
 // verificada en el sistema.
 const CLAVE_RIESGOS = 'sapac.scienza.riesgos.v1';
 const RIESGOS_BASE = null; // pegar acá el JSON exportado para fijarlo como base
+const AREAS = { BC: 'Basis / Seguridad', FI: 'FI', CO: 'CO', MM: 'MM', SD: 'SD', WM: 'WM', PP: 'PP', QM: 'QM' };
 const ESTADOS_HALLAZGO = { identificado: 'Identificado', analisis: 'Bajo análisis', corregido: 'Corregido', mitigado: 'Mitigado', aceptado: 'Aceptado' };
 const SEVERIDADES = { alta: 'Alta', media: 'Media', baja: 'Baja' };
-function riesgosPropuestos() {
+// La propuesta de la consultoría por módulo (BC, FI, CO, MM, SD, WM, PP, QM) contiene hallazgos de
+// seguridad de Scienza: NO se publica en el repositorio. Se importa desde su archivo JSON en la pestaña
+// "Riesgos y SoD" (queda guardada en el navegador), o se pega acá en una copia local de la aplicación.
+const PROPUESTA_CONSULTORIA = null;
+// Propuesta genérica de respaldo (objetos estándar de SAP), usada si no se importó la de consultoría.
+function propuestaGenerica() {
   const cap = (id, nombre, tx, obj) => ({ id, nombre, tx, obj, origen: 'propuesta' });
   const regla = (id, nombre, tipo, a, b, severidad, desc) => ({ id, nombre, tipo, a, b: b || '', severidad, desc, estado: 'propuesta' });
   return {
@@ -1145,8 +1151,11 @@ function riesgosPropuestos() {
     hallazgos: {},
   };
 }
+function riesgosPropuestos() { return PROPUESTA_CONSULTORIA ? JSON.parse(JSON.stringify(PROPUESTA_CONSULTORIA)) : propuestaGenerica(); }
 function cargarRiesgos() {
   const local = leerLocal(CLAVE_RIESGOS, null);
+  // Una versión anterior (propuesta inicial) se reemplaza por la de consultoría conservando los hallazgos tratados.
+  if (local && PROPUESTA_CONSULTORIA && (local.version || 1) < PROPUESTA_CONSULTORIA.version) { const x = riesgosPropuestos(); x.hallazgos = local.hallazgos || {}; return x; }
   if (local) return local;
   return RIESGOS_BASE ? JSON.parse(JSON.stringify(RIESGOS_BASE)) : riesgosPropuestos();
 }
@@ -1258,6 +1267,7 @@ function vistaRiesgos() {
   const todos = C.riesgos.hallazgos;
   let lista = todos;
   if (U.rkSoloConf) lista = lista.filter((x) => x.r.estado === 'confirmada');
+  if (U.rkArea) lista = lista.filter((x) => x.r.area === U.rkArea);
   if (U.rkRegla) lista = lista.filter((x) => x.r.id === U.rkRegla);
   if (U.rkSev) lista = lista.filter((x) => x.r.severidad === U.rkSev);
   if (U.rkEstado === 'exc-vencida' || U.rkEstado === 'exc-incompleta') lista = lista.filter((x) => estadoExcepcion(estadoHallazgo(x)) === U.rkEstado.slice(4));
@@ -1265,14 +1275,18 @@ function vistaRiesgos() {
   if (U.rkPais) lista = lista.filter((x) => x.c.pais.includes(U.rkPais));
   if (U.rkTexto) { const t = U.rkTexto.toUpperCase(); lista = lista.filter((x) => x.c.bname.includes(t) || x.c.nombre.toUpperCase().includes(t)); }
   const pg = paginar(lista, U.rkPag, 100);
-  const porRegla = R.reglas.map((r) => { const hs = todos.filter((x) => x.r.id === r.id); return { r, n: hs.length, uy: hs.filter((x) => x.c.pais.includes('UY')).length, cl: hs.filter((x) => x.c.pais.includes('CL')).length, abiertos: hs.filter((x) => ['identificado', 'analisis'].includes(estadoHallazgo(x).estado)).length }; });
+  const enArea = (x) => !U.rkArea || x.area === U.rkArea;
+  const porRegla = R.reglas.filter(enArea).map((r) => { const hs = todos.filter((x) => x.r.id === r.id); return { r, n: hs.length, uy: hs.filter((x) => x.c.pais.includes('UY')).length, cl: hs.filter((x) => x.c.pais.includes('CL')).length, abiertos: hs.filter((x) => ['identificado', 'analisis'].includes(estadoHallazgo(x).estado)).length }; });
   const usuariosAlta = new Set(todos.filter((x) => x.r.severidad === 'alta').map((x) => x.c.bname)).size;
   const abiertos = todos.filter((x) => ['identificado', 'analisis'].includes(estadoHallazgo(x).estado)).length;
   const tagSev = (s) => `<span class="sev ${s === 'baja' ? 'info' : s}"><b>${s === 'alta' ? '▲' : s === 'media' ? '●' : 'i'}</b>${SEVERIDADES[s]}</span>`;
   const capNombre = (id) => (R.capacidades.find((c) => c.id === id) || { nombre: id }).nombre;
   const optCaps = (sel) => R.capacidades.map((c) => `<option value="${h(c.id)}" ${sel === c.id ? 'selected' : ''}>${h(c.nombre)}</option>`).join('');
 
+  const selArea = `<div class="fila" style="margin-bottom:12px"><label>Área <select class="campo" id="rkArea"><option value="">Todas</option>${Object.entries(AREAS).map(([k, v]) => `<option value="${k}" ${U.rkArea === k ? 'selected' : ''}>${v} (${R.reglas.filter((r) => r.area === k).length} reglas)</option>`).join('')}</select></label><span class="t2 peq">${h(R.origen || '')}</span></div>`;
   return `${intro}
+  ${!R.origen ? '<div class="aviso warn"><b>Se está usando la propuesta genérica</b>Para trabajar con la propuesta de la consultoría por módulo, importá su archivo JSON con el botón "Importar" (al final de esta pestaña). Queda guardada en este navegador.</div>' : ''}
+  ${selArea}
   <div class="grid g6">
     ${stat('Reglas', R.reglas.length, `${R.reglas.filter((r) => r.estado === 'confirmada').length} confirmada(s)`)}
     ${stat('Hallazgos', todos.length, 'regla × cuenta')}
@@ -1284,7 +1298,7 @@ function vistaRiesgos() {
   <div class="card" style="margin-top:12px">
     <div class="card-h"><h2>Resultados por regla</h2></div>
     <div class="tabla-wrap"><table class="t"><thead><tr><th>Regla</th><th>Tipo</th><th>Severidad</th><th>Estado de la regla</th><th class="num">Cuentas</th><th class="num">UY</th><th class="num">CL</th><th class="num">Sin tratar</th><th></th></tr></thead><tbody>
-    ${porRegla.map((x) => `<tr><td><b>${h(x.r.nombre)}</b><div class="peq t2">${h(capNombre(x.r.a))}${x.r.tipo === 'sod' ? ' + ' + h(capNombre(x.r.b)) : ''}</div></td><td>${x.r.tipo === 'sod' ? 'SoD' : 'Crítica'}</td><td>${tagSev(x.r.severidad)}</td><td>${x.r.estado === 'confirmada' ? '<span class="tag ok"><i></i>Confirmada</span>' : x.r.estado === 'descartada' ? '<span class="tag"><i></i>Descartada</span>' : '<span class="tag warn"><i></i>Propuesta</span>'}</td><td class="num">${n(x.n)}</td><td class="num">${n(x.uy)}</td><td class="num">${n(x.cl)}</td><td class="num">${n(x.abiertos)}</td><td>${x.n ? `<button class="btn mini" data-accion="rk-ver" data-regla="${h(x.r.id)}">Ver</button>` : ''}</td></tr>`).join('')}
+    ${porRegla.map((x) => `<tr><td>${x.r.area ? `<span class="tag"><i></i>${h(x.r.area)}</span> ` : ''}<b>${h(x.r.nombre)}</b><div class="peq t2">${h(capNombre(x.r.a))}${x.r.tipo === 'sod' ? ' + ' + h(capNombre(x.r.b)) : ''}</div></td><td>${x.r.tipo === 'sod' ? 'SoD' : 'Crítica'}</td><td>${tagSev(x.r.severidad)}</td><td>${x.r.estado === 'confirmada' ? '<span class="tag ok"><i></i>Confirmada</span>' : x.r.estado === 'descartada' ? '<span class="tag"><i></i>Descartada</span>' : '<span class="tag warn"><i></i>Propuesta</span>'}</td><td class="num">${n(x.n)}</td><td class="num">${n(x.uy)}</td><td class="num">${n(x.cl)}</td><td class="num">${n(x.abiertos)}</td><td>${x.n ? `<button class="btn mini" data-accion="rk-ver" data-regla="${h(x.r.id)}">Ver</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div>
   </div>
   <div class="card">
@@ -1313,47 +1327,49 @@ function vistaRiesgos() {
   <div class="card">
     <div class="card-h"><h2>Reglas</h2><button class="btn" data-accion="rk-nueva-regla">Agregar regla</button></div>
     <div class="tabla-wrap"><table class="t"><thead><tr><th>Nombre</th><th>Tipo</th><th>Capacidad A</th><th>Capacidad B (SoD)</th><th>Severidad</th><th>Estado</th><th>Descripción</th><th></th></tr></thead><tbody>
-    ${R.reglas.map((r, i) => `<tr>
+    ${R.reglas.map((r, i) => (enArea(r) ? `<tr>
       <td><input class="campo" data-rk-regla="${i}" data-prop="nombre" value="${h(r.nombre)}"></td>
       <td><select class="campo" data-rk-regla="${i}" data-prop="tipo"><option value="critica" ${r.tipo === 'critica' ? 'selected' : ''}>Crítica</option><option value="sod" ${r.tipo === 'sod' ? 'selected' : ''}>SoD</option></select></td>
       <td><select class="campo" data-rk-regla="${i}" data-prop="a">${optCaps(r.a)}</select></td>
       <td>${r.tipo === 'sod' ? `<select class="campo" data-rk-regla="${i}" data-prop="b">${optCaps(r.b)}</select>` : '<span class="muted">—</span>'}</td>
       <td><select class="campo" data-rk-regla="${i}" data-prop="severidad">${Object.entries(SEVERIDADES).map(([k, v]) => `<option value="${k}" ${r.severidad === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
       <td><select class="campo" data-rk-regla="${i}" data-prop="estado"><option value="propuesta" ${r.estado === 'propuesta' || !r.estado ? 'selected' : ''}>Propuesta</option><option value="confirmada" ${r.estado === 'confirmada' ? 'selected' : ''}>Confirmada</option><option value="descartada" ${r.estado === 'descartada' ? 'selected' : ''}>Descartada</option></select></td>
-      <td><input class="campo" data-rk-regla="${i}" data-prop="desc" value="${h(r.desc || '')}"></td>
+      <td><input class="campo" data-rk-regla="${i}" data-prop="desc" value="${h(r.desc || '')}">${r.fundamento ? `<details class="peq t2"><summary>Fundamento${r.confianza ? ' · confianza ' + h(r.confianza) : ''}</summary>${h(r.fundamento)}</details>` : ''}</td>
       <td><button class="btn mini peligro" data-accion="rk-borrar-regla" data-i="${i}">Quitar</button></td>
-    </tr>`).join('')}
+    </tr>` : '')).join('')}
     </tbody></table></div>
   </div>
   <div class="card">
     <div class="card-h"><h2>Capacidades</h2><button class="btn" data-accion="rk-nueva-cap">Agregar capacidad</button></div>
     <p class="t2 peq" style="margin-top:0">Transacciones: alcanza con una autorizada por S_TCODE (si no hay AGR_1251, se usa el menú). Condiciones: una línea por autorización requerida, todas deben cumplirse: <span class="mono">OBJETO CAMPO=valor1,valor2 CAMPO2=+</span> ("+" = cualquier valor no vacío; un valor * en el rol cubre todo). Alternativas en la misma línea con <span class="mono">||</span>. Un usuario con SAP_ALL cumple todas.</p>
     <div class="tabla-wrap"><table class="t"><thead><tr><th>Capacidad</th><th>Transacciones</th><th>Condiciones de autorización</th><th class="num">Cuentas que la tienen</th><th>Estado</th><th></th></tr></thead><tbody>
-    ${R.capacidades.map((c, i) => `<tr>
+    ${R.capacidades.map((c, i) => (enArea(c) ? `<tr>
       <td><input class="campo" data-rk-cap="${i}" data-prop="nombre" value="${h(c.nombre)}"><div class="peq muted mono">${h(c.id)}</div></td>
       <td><input class="campo mono" style="min-width:200px" data-rk-cap="${i}" data-prop="tx" value="${h(c.tx.join(', '))}"></td>
-      <td><textarea class="campo mono" rows="${Math.max(1, c.obj.length)}" style="min-width:360px" data-rk-cap="${i}" data-prop="obj">${h(c.obj.join('\n'))}</textarea></td>
+      <td><textarea class="campo mono" rows="${Math.max(1, c.obj.length)}" style="min-width:360px" data-rk-cap="${i}" data-prop="obj">${h(c.obj.join('\n'))}</textarea>${c.fundamento ? `<details class="peq t2"><summary>Fundamento${c.confianza ? ' · confianza ' + h(c.confianza) : ''}</summary>${h(c.fundamento)}</details>` : ''}</td>
       <td class="num">${n(C.riesgos.cuentasPorCap[c.id] || 0)}</td>
       <td><select class="campo" data-rk-cap="${i}" data-prop="estado"><option value="propuesta" ${c.estado !== 'confirmada' ? 'selected' : ''}>Propuesta</option><option value="confirmada" ${c.estado === 'confirmada' ? 'selected' : ''}>Confirmada</option></select>${c.area ? `<div class="peq muted">${h(c.area)}</div>` : ''}</td>
       <td><button class="btn mini peligro" data-accion="rk-borrar-cap" data-i="${i}">Quitar</button></td>
-    </tr>`).join('')}
+    </tr>` : '')).join('')}
     </tbody></table></div>
   </div>
+  ${seccionPreguntas()}
   <div class="card"><div class="card-h"><h2>Guardar y respaldar</h2></div>
     <p class="t2 peq" style="margin-top:0">Reglas, capacidades y estados de los hallazgos se guardan en este navegador. Exportalos como respaldo o para fijarlos como base de la aplicación.</p>
     <div class="fila">
       <button class="btn" data-accion="rk-exportar">Exportar reglas y hallazgos (JSON)</button>
       <label class="btn">Importar<input type="file" class="oculto" id="rkImportar" accept=".json"></label>
-      <button class="btn peligro" data-accion="rk-restaurar">Restaurar propuesta inicial</button>
+      <button class="btn peligro" data-accion="rk-restaurar">Restaurar propuesta</button>
     </div>
   </div>`;
 }
 // Revisión guiada: primero capacidades (la base), después reglas.
 function revisionGuiadaRiesgos() {
   const R = S.riesgos, C = S.calc, U = S.ui;
-  const pendCap = R.capacidades.filter((c) => c.estado !== 'confirmada' && !U.rkSaltados.has('cap|' + c.id));
-  const pendReg = R.reglas.filter((r) => (r.estado || 'propuesta') === 'propuesta' && !U.rkSaltados.has('reg|' + r.id));
-  const totalPend = R.capacidades.filter((c) => c.estado !== 'confirmada').length + R.reglas.filter((r) => (r.estado || 'propuesta') === 'propuesta').length;
+  const enArea = (x) => !U.rkArea || x.area === U.rkArea;
+  const pendCap = R.capacidades.filter((c) => enArea(c) && c.estado !== 'confirmada' && !U.rkSaltados.has('cap|' + c.id));
+  const pendReg = R.reglas.filter((r) => enArea(r) && (r.estado || 'propuesta') === 'propuesta' && !U.rkSaltados.has('reg|' + r.id));
+  const totalPend = R.capacidades.filter((c) => enArea(c) && c.estado !== 'confirmada').length + R.reglas.filter((r) => enArea(r) && (r.estado || 'propuesta') === 'propuesta').length;
   if (!totalPend) return '<div class="aviso ok"><b>Reglas y capacidades revisadas</b>No quedan definiciones propuestas sin confirmar.</div>';
   const conf = (x) => (x.confianza ? `<span class="tag ${x.confianza === 'alta' ? 'ok' : x.confianza === 'media' ? 'warn' : 'crit'}"><i></i>Confianza ${h(x.confianza)}</span>` : '');
   const cap = pendCap[0], reg = !cap && pendReg[0];
@@ -1387,6 +1403,23 @@ function revisionGuiadaRiesgos() {
       <button class="btn" data-accion="rk-guia" data-op="editar" data-tipo="${tipo}" data-id="${h(id)}">Editar en la tabla</button>
       <button class="btn mini" data-accion="rk-guia" data-op="saltar" data-tipo="${tipo}" data-id="${h(id)}">Después</button>
     </div>
+  </div>`;
+}
+function seccionPreguntas() {
+  const R = S.riesgos, U = S.ui;
+  const pregs = (R.preguntas || []).filter((q) => (!U.rkArea || q.area === U.rkArea) && (!U.rkPregEstado || q.estado === U.rkPregEstado));
+  const obs = (R.observaciones || []).filter((o) => !U.rkArea || o.area === U.rkArea);
+  const abiertas = (R.preguntas || []).filter((q) => q.estado !== 'respondida').length;
+  return `<div class="card">
+    <div class="card-h"><h2>Preguntas de la consultoría para Scienza <span class="muted peq">(${n(abiertas)} abiertas de ${n((R.preguntas || []).length)})</span></h2>
+      <div class="fila"><select class="campo" id="rkPregEstado"><option value="">Todas</option><option value="abierta" ${U.rkPregEstado === 'abierta' ? 'selected' : ''}>Abiertas</option><option value="respondida" ${U.rkPregEstado === 'respondida' ? 'selected' : ''}>Respondidas</option></select><button class="btn" data-accion="rk-exportar-preguntas">Exportar CSV</button></div></div>
+    <p class="t2 peq" style="margin-top:0">Lo que respondas queda guardado. Con tus respuestas se afinan las capacidades: por ejemplo, confirmar qué grupos de liberación son de pedido o qué objeto chequea una transacción Z.</p>
+    <div class="tabla-wrap" style="max-height:480px"><table class="t"><thead><tr><th>Área</th><th>Pregunta</th><th>Respuesta</th></tr></thead><tbody>
+    ${pregs.map((q) => `<tr><td><span class="tag ${q.estado === 'respondida' ? 'ok' : 'warn'}"><i></i>${h(q.area)}</span></td><td class="peq" style="max-width:520px">${h(q.texto)}</td><td><textarea class="campo" rows="2" style="min-width:280px" data-rk-preg="${h(q.id)}" placeholder="Respuesta…">${h(q.respuesta || '')}</textarea>${q.fecha ? `<div class="peq muted">${new Date(q.fecha).toLocaleDateString('es-UY')}${q.por ? ' · ' + h(q.por) : ''}</div>` : ''}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Sin preguntas con este filtro.</td></tr>'}
+    </tbody></table></div>
+    ${obs.length ? `<details style="margin-top:12px"><summary><b>Observaciones de la consultoría (${n(obs.length)})</b></summary>
+      ${Object.keys(AREAS).filter((a) => obs.some((o) => o.area === a)).map((a) => `<h3>${AREAS[a]}</h3><ul class="peq" style="margin:0;padding-left:18px">${obs.filter((o) => o.area === a).map((o) => `<li>${h(o.texto)}</li>`).join('')}</ul>`).join('')}
+    </details>` : ''}
   </div>`;
 }
 function seccionRiesgos(c) {
@@ -2029,6 +2062,8 @@ document.addEventListener('click', (e) => {
     document.getElementById('cajon-raiz').innerHTML = '';
     render();
   }
+  else if (a === 'rk-exportar-preguntas') descargarCsv(`preguntas_consultoria_${hoyISO()}.csv`, ['Id', 'Area', 'Pregunta', 'Estado', 'Respuesta', 'Fecha', 'Por'],
+      (S.riesgos.preguntas || []).map((q) => [q.id, q.area, q.texto, q.estado, q.respuesta || '', q.fecha ? q.fecha.slice(0, 10) : '', q.por || '']));
   else if (a === 'rk-ver') { U.rkRegla = t.dataset.regla; U.rkPag = 0; render(); document.getElementById('rkRegla').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   else if (a === 'rk-nueva-regla') { const cap = S.riesgos.capacidades[0]; S.riesgos.reglas.push({ id: 'R' + Date.now(), nombre: 'Nueva regla', tipo: 'critica', a: cap ? cap.id : '', b: '', severidad: 'media', desc: '', estado: 'propuesta' }); guardarRiesgos(); recalcular(); }
   else if (a === 'rk-borrar-regla') { if (confirm('¿Quitar esta regla?')) { S.riesgos.reglas.splice(+t.dataset.i, 1); guardarRiesgos(); recalcular(); } }
@@ -2039,7 +2074,7 @@ document.addEventListener('click', (e) => {
     if (confirm('¿Quitar esta capacidad?')) { S.riesgos.capacidades.splice(+t.dataset.i, 1); guardarRiesgos(); recalcular(); }
   }
   else if (a === 'rk-exportar') descargar(`riesgos_sod_scienza_${hoyISO()}.json`, JSON.stringify(S.riesgos, null, 2), 'application/json');
-  else if (a === 'rk-restaurar') { if (confirm('¿Volver a la propuesta inicial de reglas y capacidades? Se conservan los estados y notas de los hallazgos.')) { const hz = S.riesgos.hallazgos; S.riesgos = riesgosPropuestos(); S.riesgos.hallazgos = hz; guardarRiesgos(); recalcular(); } }
+  else if (a === 'rk-restaurar') { if (confirm('¿Volver a la propuesta de respaldo (la de consultoría si está incluida en esta copia, si no la genérica)? Se conservan los estados y notas de los hallazgos; se pierden las confirmaciones y respuestas.')) { const hz = S.riesgos.hallazgos; S.riesgos = riesgosPropuestos(); S.riesgos.hallazgos = hz; guardarRiesgos(); recalcular(); } }
   else if (a === 'rk-exportar-csv') descargarCsv(`hallazgos_riesgos_${S.fechaRef}.csv`, ['Usuario', 'Nombre', 'Pais', 'Bloqueada', 'Regla', 'Tipo', 'Severidad', 'Estado regla', 'Evidencia', 'Estado hallazgo', 'Nota', 'Actualizado', 'Por', 'Excepcion', 'Motivo', 'Control mitigante', 'Aprobador', 'Aprobada el', 'Vence', 'Evidencia excepcion', 'Fecha extraccion'],
       S.calc.riesgos.hallazgos.map((x) => { const e = estadoHallazgo(x); return [x.c.bname, x.c.nombre, x.c.pais.join('+'), x.c.bloqueada ? 'Si' : 'No', x.r.nombre, x.r.tipo === 'sod' ? 'SoD' : 'Critica', SEVERIDADES[x.r.severidad], x.r.estado, x.ev.map(([cap, via]) => cap + ': ' + via.join(' / ')).join(' | '), ESTADOS_HALLAZGO[e.estado], e.nota || '', e.fecha ? e.fecha.slice(0, 10) : '', e.por || '', estadoExcepcion(e), ...['motivo', 'control', 'aprobador', 'aprobado', 'vencimiento', 'evidencia'].map((f) => (e.excepcion || {})[f] || ''), S.fechaRef]; }));
   else if (a === 'q-buscar') { ['qCodigo', 'qCampo', 'qValor'].forEach((id) => { const el = document.getElementById(id); if (el) U[id] = el.value; }); render(); }
@@ -2115,6 +2150,12 @@ document.addEventListener('change', async (e) => {
     if (prop !== 'estado') { c.origen = 'manual'; if (c.estado === 'confirmada') c.estado = 'propuesta'; } // si cambia la definición, hay que reconfirmarla
     guardarRiesgos(); return recalcular();
   }
+  if (t.dataset.rkPreg) {
+    const q = S.riesgos.preguntas.find((x) => x.id === t.dataset.rkPreg);
+    Object.assign(q, { respuesta: t.value.trim(), estado: t.value.trim() ? 'respondida' : 'abierta', fecha: new Date().toISOString(), por: S.param.responsable || '' });
+    guardarRiesgos(); return render();
+  }
+  if (['rkArea', 'rkPregEstado'].includes(t.id)) { U[t.id] = t.value; U.rkPag = 0; return render(); }
   if (['rkRegla', 'rkSev', 'rkEstado', 'rkPais'].includes(t.id)) { U[t.id] = t.value; U.rkPag = 0; return render(); }
   if (t.id === 'rkSoloConf') { U.rkSoloConf = t.checked; U.rkPag = 0; return render(); }
   if (t.id === 'rkImportar' && t.files[0]) {
