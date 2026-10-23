@@ -96,6 +96,19 @@ La pestaña **Riesgos y SoD** (paso 5) evalúa reglas sobre las cuentas del univ
   Todo es editable y se exporta/importa en JSON (`RIESGOS_BASE` para fijarlo como base).
 - Es nivel 2 (autorización configurada): indica una capacidad probable, no una verificación en el sistema.
 
+## Historial, informe y respaldo
+
+La pestaña **Historial e informe** (paso 6):
+
+- **Fotos del historial:** guarda una foto compacta de cada extracción (universo, roles vigentes y hallazgos) y
+  compara dos fotos, o una foto con la extracción cargada. Muestra cuentas que entran o salen del universo,
+  roles agregados o quitados, bloqueos, y hallazgos nuevos o resueltos. Las diferencias se exportan a CSV.
+- **Informe completo (Excel):** resumen, universo, todas las cuentas, asignaciones, roles, hallazgos, resultados
+  por regla, reglas, capacidades, preguntas y parametrización. Contiene datos sensibles.
+- **Respaldo completo (JSON):** parametrización, decisiones del universo, reglas, hallazgos, excepciones,
+  preguntas e historial en un solo archivo, que se restaura en otra computadora o navegador. No incluye los
+  archivos de SAP.
+
 ## Seguridad
 
 El repositorio es **público**. Nunca subir extracciones reales, universos exportados ni configuraciones con

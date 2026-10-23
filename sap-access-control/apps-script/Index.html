@@ -126,6 +126,7 @@ details summary { cursor: pointer; }
     <button data-tab="universo"><span class="paso">3</span>Definir universo</button>
     <button data-tab="analisis"><span class="paso">4</span>Análisis</button>
     <button data-tab="riesgos"><span class="paso">5</span>Riesgos y SoD</button>
+    <button data-tab="historial"><span class="paso">6</span>Historial e informe</button>
     <button data-tab="registro"><span class="paso">i</span>Registro y ayuda</button>
   </nav>
 </header>
@@ -703,6 +704,7 @@ const S = {
   param: null, paramOrigen: '',
   ui: { uFiltro: 'pendientes', uTexto: '', uPag: 0, uSel: new Set(),
         pEstado: 'sinconfirmar', pUso: 'conuso', pTipo: '', pCampo: '', pOrigen: '', pPais: '', pTexto: '', pPag: 0, pSel: new Set(), pSaltados: new Set(),
+        hA: '', hB: '',
         rkRegla: '', rkSev: '', rkEstado: '', rkPais: '', rkTexto: '', rkSoloConf: false, rkPag: 0, rkSaltados: new Set(), rkArea: '', rkPregEstado: '',
         qModo: 'tx', qCodigo: '', qCampo: '', qValor: '',
         aFiltro: '', aTexto: '', aPag: 0, aOrden: ['bname', 1], rTexto: '', rPag: 0, rOrden: ['enUniverso', -1] },
@@ -1428,6 +1430,146 @@ function seccionRiesgos(c) {
   return `<div class="card"><h2>Riesgos (${n(hs.length)})</h2>${hs.length ? `<ul style="margin:0;padding-left:18px">${hs.map((x) => `<li><b>${h(x.r.nombre)}</b> <span class="peq t2">(${SEVERIDADES[x.r.severidad]} · ${ESTADOS_HALLAZGO[estadoHallazgo(x).estado]}${x.r.estado !== 'confirmada' ? ' · regla propuesta' : ''})</span></li>`).join('')}</ul>` : '<p class="t2" style="margin:0">Sin hallazgos con las reglas actuales.</p>'}</div>`;
 }
 
+// ------------------------------------------- respaldo, informe e historial
+// Respaldo único: todo lo que se define en la aplicación (parametrización,
+// decisiones del universo, reglas, hallazgos, preguntas e historial).
+const CLAVE_HISTORIAL = 'sapac.scienza.historial.v1';
+const leerHistorial = () => leerLocal(CLAVE_HISTORIAL, []);
+function exportarRespaldo() {
+  const r = { tipo: 'sapac-respaldo', version: 1, generado: new Date().toISOString(), responsable: S.param.responsable || '',
+    parametrizacion: S.param, universo: S.conf, riesgos: S.riesgos, historial: leerHistorial() };
+  descargar(`respaldo_sap_access_control_${hoyISO()}.json`, JSON.stringify(r, null, 1), 'application/json');
+}
+async function importarRespaldo(file) {
+  const r = JSON.parse(await file.text());
+  if (r.tipo !== 'sapac-respaldo') throw new Error('el archivo no es un respaldo de esta aplicación');
+  const resumen = `Parametrización: ${Object.keys(r.parametrizacion.definiciones || {}).length} definiciones\nDecisiones del universo: ${Object.keys(r.universo.decisiones || {}).length}\nReglas: ${(r.riesgos.reglas || []).length} · hallazgos tratados: ${Object.keys(r.riesgos.hallazgos || {}).length}\nFotos de historial: ${(r.historial || []).length}`;
+  if (!confirm(`Se reemplazará todo lo guardado en este navegador por el respaldo del ${new Date(r.generado).toLocaleString('es-UY')}:\n\n${resumen}\n\n¿Continuar?`)) return;
+  S.param = Object.assign(paramNueva(), r.parametrizacion); guardarParam();
+  S.conf = Object.assign({ decisiones: {}, excluirTecnicas: true, umbralRoles: 25, diasSinAcceso: 90 }, r.universo); guardarConf();
+  S.riesgos = r.riesgos; guardarRiesgos();
+  guardarLocal(CLAVE_HISTORIAL, r.historial || []);
+  recalcular();
+  alert('Respaldo restaurado.');
+}
+
+// Informe completo en Excel (una hoja por tema). Contiene datos sensibles: se genera y queda solo en el equipo.
+function exportarInforme() {
+  const C = S.calc, R = S.riesgos, P = S.conf;
+  if (!C || !C.cuentas.length) return alert('Cargá las tablas primero.');
+  const wb = XLSX.utils.book_new();
+  const hoja = (nombre, cab, filas) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([cab, ...filas]), nombre.slice(0, 31));
+  const hs = C.riesgos ? C.riesgos.hallazgos : [];
+  const u = C.universo;
+  hoja('Resumen', ['Indicador', 'Valor'], [
+    ['Fecha de extracción', S.fechaRef], ['Informe generado', new Date().toLocaleString('es-UY')], ['Responsable', S.param.responsable || ''],
+    ['Cuentas en USR02', C.cuentas.length], ['Cuentas en el universo', u.length],
+    ['Uruguay', u.filter((c) => c.pais.includes('UY')).length], ['Chile', u.filter((c) => c.pais.includes('CL')).length],
+    ['Utilizables del universo', u.filter((c) => c.utilizable).length], ['Con SAP_ALL / SAP_NEW directo', u.filter((c) => c.critico).length],
+    ['Definiciones de país confirmadas', Object.keys(S.param.definiciones).length],
+    ['Reglas (confirmadas / total)', `${R.reglas.filter((r) => r.estado === 'confirmada').length} / ${R.reglas.length}`],
+    ['Hallazgos', hs.length], ['Cuentas con hallazgos de severidad alta', new Set(hs.filter((x) => x.r.severidad === 'alta').map((x) => x.c.bname)).size],
+    ['Preguntas de consultoría abiertas', (R.preguntas || []).filter((q) => q.estado !== 'respondida').length],
+    ['Nivel de análisis', 'Nivel 1 y 2: asignaciones y autorizaciones configuradas. No prueba ejecución efectiva ni uso real.'],
+  ]);
+  hoja('Universo', ['Usuario', 'Nombre', 'País', 'Tipo', 'Estado', 'Motivo bloqueo', 'Válido desde', 'Válido hasta', 'Último acceso', 'Roles vigentes', 'Perfiles directos', 'Transacciones críticas', 'Decisión', 'Origen decisión', 'Hallazgos'],
+    u.map((c) => [c.bname, c.nombre, c.pais.join('+'), TIPOS[c.ustyp] || c.ustyp, c.bloqueada ? 'Bloqueada' : c.utilizable ? 'Utilizable' : 'Validez ' + c.vigCuenta, c.motivos.join(' · '), c.gltgv, c.gltgb, c.trdat, c.vigentes.length, c.perfilesDirectos.join(', '), c.txCriticas.join(', '), c.final, c.manual ? 'manual' : 'sugerencia', hs.filter((x) => x.c === c).length]));
+  hoja('Todas las cuentas', ['Usuario', 'Nombre', 'Tipo', 'Decisión', 'Origen', 'Motivo sugerencia', 'Pistas', 'País'],
+    C.cuentas.map((c) => [c.bname, c.nombre, TIPOS[c.ustyp] || c.ustyp, c.final, c.manual ? 'manual' : 'sugerencia', c.motivo, Object.entries(c.ev).filter(([, v]) => v).map(([k, v]) => `${k}:${v}`).join(' '), c.pais.join('+')]));
+  hoja('Asignaciones', ['Usuario', 'País', 'Rol', 'Descripción', 'Desde', 'Hasta', 'Estado', 'Vía compuesto'],
+    u.flatMap((c) => c.roles.map((r) => [c.bname, c.pais.join('+'), r.agr, (C.infoRol[r.agr] || {}).desc || '', r.desde, r.hasta, r.estado, (r.via || []).join(', ')])));
+  hoja('Roles', ['Rol', 'Descripción', 'Compuesto', 'Derivado de', 'Obsoleto', 'Cuentas del universo', 'UY', 'CL', 'Fuera del universo'],
+    C.roles.map((r) => { const x = C.infoRol[r.agr] || {}; return [r.agr, x.desc || '', x.compuesto ? 'Sí' : '', x.padre || '', x.obsoleto ? 'Sí' : '', r.enUniverso, r.uy, r.cl, r.fuera]; }));
+  if (C.riesgos) {
+    hoja('Hallazgos', ['Usuario', 'Nombre', 'País', 'Bloqueada', 'Área', 'Regla', 'Tipo', 'Severidad', 'Estado regla', 'Evidencia', 'Estado hallazgo', 'Nota', 'Excepción', 'Motivo', 'Control mitigante', 'Aprobador', 'Vence'],
+      hs.map((x) => { const e = estadoHallazgo(x), ex = e.excepcion || {}; return [x.c.bname, x.c.nombre, x.c.pais.join('+'), x.c.bloqueada ? 'Sí' : 'No', x.r.area || '', x.r.nombre, x.r.tipo === 'sod' ? 'SoD' : 'Crítica', SEVERIDADES[x.r.severidad], x.r.estado, x.ev.map(([cap, via]) => `${cap}: ${via.join(' / ')}`).join(' | '), ESTADOS_HALLAZGO[e.estado], e.nota || '', estadoExcepcion(e), ex.motivo || '', ex.control || '', ex.aprobador || '', ex.vencimiento || '']; }));
+    hoja('Resultados por regla', ['Área', 'Regla', 'Tipo', 'Severidad', 'Estado', 'Cuentas', 'UY', 'CL'],
+      R.reglas.map((r) => { const h2 = hs.filter((x) => x.r.id === r.id); return [r.area || '', r.nombre, r.tipo === 'sod' ? 'SoD' : 'Crítica', SEVERIDADES[r.severidad], r.estado || 'propuesta', h2.length, h2.filter((x) => x.c.pais.includes('UY')).length, h2.filter((x) => x.c.pais.includes('CL')).length]; }));
+  }
+  hoja('Reglas', ['Id', 'Área', 'Nombre', 'Tipo', 'Capacidad A', 'Capacidad B', 'Severidad', 'Estado', 'Descripción', 'Fundamento', 'Confianza'],
+    R.reglas.map((r) => [r.id, r.area || '', r.nombre, r.tipo, r.a, r.b || '', r.severidad, r.estado || 'propuesta', r.desc || '', r.fundamento || '', r.confianza || '']));
+  hoja('Capacidades', ['Id', 'Área', 'Nombre', 'Transacciones', 'Condiciones', 'Estado', 'Cuentas que la tienen', 'Fundamento', 'Confianza'],
+    R.capacidades.map((c) => [c.id, c.area || '', c.nombre, c.tx.join(', '), c.obj.join(' ; '), c.estado || 'propuesta', C.riesgos ? C.riesgos.cuentasPorCap[c.id] || 0 : '', c.fundamento || '', c.confianza || '']));
+  if ((R.preguntas || []).length) hoja('Preguntas', ['Id', 'Área', 'Pregunta', 'Estado', 'Respuesta', 'Fecha', 'Por'], R.preguntas.map((q) => [q.id, q.area, q.texto, q.estado, q.respuesta || '', q.fecha ? q.fecha.slice(0, 10) : '', q.por || '']));
+  hoja('Parametrización países', ['Tipo', 'Campo', 'Código', 'País', 'Confirmado el', 'Por'],
+    Object.values(S.param.definiciones).map((d) => [TIPOS_DEF[d.tipo], d.campo, d.valor, PAISES[d.pais], d.fecha.slice(0, 10), d.por || '']));
+  XLSX.writeFile(wb, `informe_sap_access_control_${S.fechaRef}.xlsx`);
+}
+
+// Historial: "foto" compacta de cada extracción (universo, roles vigentes y hallazgos).
+function fotoActual() {
+  const C = S.calc;
+  const hs = C.riesgos ? C.riesgos.hallazgos : [];
+  const cuentas = {};
+  for (const c of C.universo) cuentas[c.bname] = { n: c.nombre, p: c.pais, u: c.utilizable ? 1 : 0, b: c.bloqueada ? 1 : 0, r: c.vigentes };
+  return {
+    id: 'F' + Date.now(), fechaExtraccion: S.fechaRef, guardado: new Date().toISOString(), por: S.param.responsable || '',
+    resumen: { cuentasUSR02: C.cuentas.length, universo: C.universo.length, uy: C.universo.filter((c) => c.pais.includes('UY')).length, cl: C.universo.filter((c) => c.pais.includes('CL')).length, hallazgos: hs.length, alta: hs.filter((x) => x.r.severidad === 'alta').length },
+    cuentas, hallazgos: hs.map((x) => `${x.r.id}|${x.c.bname}`), reglas: Object.fromEntries(S.riesgos.reglas.map((r) => [r.id, r.nombre])),
+  };
+}
+function compararFotos(a, b) {
+  const ka = new Set(Object.keys(a.cuentas)), kb = new Set(Object.keys(b.cuentas));
+  const entran = [...kb].filter((k) => !ka.has(k)).sort(), salen = [...ka].filter((k) => !kb.has(k)).sort();
+  const cambios = [];
+  for (const k of [...kb].filter((x) => ka.has(x)).sort()) {
+    const x = a.cuentas[k], y = b.cuentas[k];
+    const ra = new Set(x.r), rb = new Set(y.r);
+    const mas = y.r.filter((r) => !ra.has(r)), menos = x.r.filter((r) => !rb.has(r));
+    const estado = x.b !== y.b ? (y.b ? 'Se bloqueó' : 'Se desbloqueó') : '';
+    if (mas.length || menos.length || estado) cambios.push({ k, nombre: y.n, mas, menos, estado });
+  }
+  const ha = new Set(a.hallazgos), hb = new Set(b.hallazgos);
+  return { entran, salen, cambios, nuevos: b.hallazgos.filter((x) => !ha.has(x)), resueltos: a.hallazgos.filter((x) => !hb.has(x)) };
+}
+function vistaHistorial() {
+  const U = S.ui, hist = leerHistorial(), C = S.calc;
+  const hayActual = !!(C && C.universo.length);
+  const opciones = [...(hayActual ? [['actual', `Extracción cargada ahora (${fmtFecha(S.fechaRef)})`]] : []), ...hist.map((f) => [f.id, `${fmtFecha(f.fechaExtraccion)} · guardada ${new Date(f.guardado).toLocaleDateString('es-UY')}`])];
+  const obtener = (id) => (id === 'actual' ? (hayActual ? fotoActual() : null) : hist.find((f) => f.id === id));
+  const idA = U.hA || (hist[hist.length - 1] || {}).id, idB = U.hB || (hayActual ? 'actual' : (hist[hist.length - 2] || {}).id);
+  const fa = idA && obtener(idA), fb = idB && obtener(idB);
+  let comp = '';
+  if (fa && fb && idA !== idB) {
+    const d = compararFotos(fa, fb);
+    const nomRegla = (k) => { const [r, u] = k.split('|'); return [u, (fb.reglas && fb.reglas[r]) || (fa.reglas && fa.reglas[r]) || r]; };
+    comp = `<div class="grid g6" style="margin-top:12px">
+      ${stat('Entran al universo', d.entran.length)}${stat('Salen del universo', d.salen.length)}${stat('Cuentas con cambios', d.cambios.length, 'roles o bloqueo')}
+      ${stat('Hallazgos nuevos', d.nuevos.length)}${stat('Hallazgos resueltos', d.resueltos.length)}
+    </div>
+    <div class="card" style="margin-top:12px"><div class="card-h"><h2>Detalle</h2><button class="btn" data-accion="h-exportar">Exportar diferencias (CSV)</button></div>
+      ${d.entran.length ? `<h3>Entran al universo</h3><p class="mono peq">${d.entran.map((k) => `${h(k)}${fb.cuentas[k].n ? ' (' + h(fb.cuentas[k].n) + ')' : ''}`).join(', ')}</p>` : ''}
+      ${d.salen.length ? `<h3>Salen del universo</h3><p class="mono peq">${d.salen.map((k) => `${h(k)}${fa.cuentas[k].n ? ' (' + h(fa.cuentas[k].n) + ')' : ''}`).join(', ')}</p>` : ''}
+      ${d.cambios.length ? `<h3>Cambios en cuentas</h3><div class="tabla-wrap" style="max-height:360px"><table class="t"><thead><tr><th>Usuario</th><th>Estado</th><th>Roles agregados</th><th>Roles quitados</th></tr></thead><tbody>${d.cambios.map((x) => `<tr><td class="mono">${h(x.k)}<div class="peq t2">${h(x.nombre || '')}</div></td><td>${h(x.estado) || '—'}</td><td class="mono peq">${h(x.mas.join(', ')) || '—'}</td><td class="mono peq">${h(x.menos.join(', ')) || '—'}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${d.nuevos.length ? `<h3>Hallazgos nuevos</h3><div class="tabla-wrap" style="max-height:300px"><table class="t"><tbody>${d.nuevos.map((k) => { const [uu, rr] = nomRegla(k); return `<tr><td class="mono">${h(uu)}</td><td>${h(rr)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+      ${d.resueltos.length ? `<h3>Hallazgos resueltos (ya no aparecen)</h3><div class="tabla-wrap" style="max-height:300px"><table class="t"><tbody>${d.resueltos.map((k) => { const [uu, rr] = nomRegla(k); return `<tr><td class="mono">${h(uu)}</td><td>${h(rr)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+      ${!d.entran.length && !d.salen.length && !d.cambios.length && !d.nuevos.length && !d.resueltos.length ? '<p class="t2">Sin diferencias.</p>' : ''}
+      <p class="t2 peq">Si cambiaron las reglas o la parametrización entre una foto y otra, parte de las diferencias de hallazgos puede deberse a eso y no a cambios en SAP.</p>
+    </div>`;
+  }
+  return `<h1>Historial y comparación</h1>
+  <p class="sub">Guardá una "foto" de cada extracción (universo, roles vigentes y hallazgos) y comparala con otra para ver qué cambió en SAP: cuentas que entran o salen, roles agregados o quitados, hallazgos nuevos o resueltos. Las fotos se guardan en este navegador y se incluyen en el respaldo.</p>
+  <div class="card"><div class="card-h"><h2>Fotos guardadas (${n(hist.length)})</h2>${hayActual ? '<button class="btn prim" data-accion="h-guardar">Guardar foto de la extracción cargada</button>' : ''}</div>
+    ${hist.length ? `<div class="tabla-wrap"><table class="t"><thead><tr><th>Extracción</th><th>Guardada</th><th class="num">Universo</th><th class="num">UY</th><th class="num">CL</th><th class="num">Hallazgos</th><th class="num">Alta</th><th></th></tr></thead><tbody>
+    ${hist.map((f) => `<tr><td>${fmtFecha(f.fechaExtraccion)}</td><td>${new Date(f.guardado).toLocaleString('es-UY')}${f.por ? ' · ' + h(f.por) : ''}</td><td class="num">${n(f.resumen.universo)}</td><td class="num">${n(f.resumen.uy)}</td><td class="num">${n(f.resumen.cl)}</td><td class="num">${n(f.resumen.hallazgos)}</td><td class="num">${n(f.resumen.alta)}</td><td><button class="btn mini peligro" data-accion="h-borrar" data-id="${h(f.id)}">Quitar</button></td></tr>`).join('')}
+    </tbody></table></div>` : `<p class="t2">Todavía no hay fotos. ${hayActual ? 'Guardá la de la extracción cargada para tener la línea base.' : 'Cargá las tablas y guardá la primera foto: es la línea base.'}</p>`}
+  </div>
+  ${opciones.length >= 2 ? `<div class="card"><div class="card-h"><h2>Comparar</h2></div>
+    <div class="fila"><label>Antes <select class="campo" id="hA">${opciones.map(([k, v]) => `<option value="${h(k)}" ${k === idA ? 'selected' : ''}>${h(v)}</option>`).join('')}</select></label>
+    <label>Después <select class="campo" id="hB">${opciones.map(([k, v]) => `<option value="${h(k)}" ${k === idB ? 'selected' : ''}>${h(v)}</option>`).join('')}</select></label></div>
+    ${comp}
+  </div>` : ''}
+  <div class="card"><div class="card-h"><h2>Informe y respaldo</h2></div>
+    <p class="t2 peq" style="margin-top:0"><b>Informe completo (Excel):</b> resumen, universo, todas las cuentas, asignaciones, roles, hallazgos, resultados por regla, reglas, capacidades, preguntas y parametrización. Contiene datos sensibles: guardalo en una ubicación con acceso restringido.<br>
+    <b>Respaldo completo (JSON):</b> parametrización de países, decisiones del universo, reglas, capacidades, hallazgos tratados, excepciones, preguntas e historial. Sirve para restaurar todo en otra computadora o navegador. No incluye los archivos de SAP.</p>
+    <div class="fila">
+      <button class="btn" data-accion="h-informe" ${hayActual ? '' : 'disabled'}>Exportar informe completo (Excel)</button>
+      <button class="btn" data-accion="h-respaldo">Exportar respaldo completo (JSON)</button>
+      <label class="btn">Restaurar respaldo<input type="file" class="oculto" id="hRestaurar" accept=".json"></label>
+    </div>
+  </div>`;
+}
+
 // ------------------------------------------------- vista: parametrización
 const tagDef = (p) => (p === 'UY' || p === 'CL' || p === 'AR' ? tagPais(p) : `<span class="tag"><i></i>${PAISES[p] || p}</span>`);
 const grupoTipo = (t) => (t === 'contiene' ? 'token' : t);
@@ -1754,7 +1896,7 @@ function vistaAnalisis() {
     <table class="t"><tbody>${SENALES.map((s) => `<tr><td style="width:120px"><span class="sev ${s[1]}"><b>${s[1] === 'alta' ? '▲' : s[1] === 'media' ? '●' : 'i'}</b>${s[1] === 'info' ? 'Informativa' : s[1] === 'alta' ? 'Prioridad alta' : 'Revisar'}</span></td><td><b>${h(s[2])}</b><div class="peq t2">${h(txtSenal(s, P))}</div></td><td class="num"><button class="link" style="font-size:18px;font-weight:600" data-accion="a-s:${s[0]}">${n(conteo[s[0]])}</button></td></tr>`).join('')}</tbody></table>
   </div>
   <div class="card">
-    <div class="card-h"><h2>Cuentas del universo</h2><button class="btn" data-accion="exportar-cuentas">Exportar CSV</button></div>
+    <div class="card-h"><h2>Cuentas del universo</h2><div class="fila"><button class="btn" data-accion="exportar-cuentas">Exportar CSV</button><button class="btn" data-accion="h-informe">Informe completo (Excel)</button></div></div>
     <div class="fila" style="margin-bottom:8px">
       <select class="campo" id="aFiltro"><option value="">Todas</option><option value="UY" ${U.aFiltro === 'UY' ? 'selected' : ''}>Uruguay</option><option value="CL" ${U.aFiltro === 'CL' ? 'selected' : ''}>Chile</option><option value="utilizables" ${U.aFiltro === 'utilizables' ? 'selected' : ''}>Utilizables</option>${SENALES.map((s) => `<option value="s:${s[0]}" ${U.aFiltro === 's:' + s[0] ? 'selected' : ''}>${h(s[2])}</option>`).join('')}</select>
       <input class="campo" id="aTexto" placeholder="Buscar usuario, nombre, rol, grupo…" value="${h(U.aTexto)}">
@@ -1798,8 +1940,8 @@ function vistaRegistro() {
     </ul>
   </div>
   <div class="card"><h2>Datos y privacidad</h2>
-    <p class="t2" style="margin-top:0">Los archivos se leen en memoria en este navegador y se descartan al cerrar la página. Solo se recuerdan las reglas y decisiones del universo (usuarios SAP, sin datos personales adicionales) en el almacenamiento local del navegador.</p>
-    <button class="btn peligro" data-accion="borrar-conf">Borrar decisiones del universo</button>
+    <p class="t2" style="margin-top:0">Los archivos de SAP se leen en memoria en este navegador y se descartan al cerrar la página. En el almacenamiento local del navegador se guardan la parametrización de países, las decisiones del universo, las reglas y hallazgos tratados, y las fotos del historial. Para llevarlos a otra computadora usá el respaldo completo (pestaña Historial e informe).</p>
+    <div class="fila"><button class="btn" data-accion="h-respaldo">Exportar respaldo completo</button><button class="btn peligro" data-accion="borrar-conf">Borrar decisiones del universo</button></div>
   </div>`;
 }
 
@@ -1895,7 +2037,7 @@ function render() {
   const app = document.getElementById('app');
   const foco = document.activeElement && document.activeElement.id;
   const pos = foco && document.activeElement.selectionStart;
-  app.innerHTML = S.tab === 'cargar' ? vistaCargar() : S.tab === 'parametrizacion' ? vistaParametrizacion() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : S.tab === 'riesgos' ? vistaRiesgos() : vistaRegistro();
+  app.innerHTML = S.tab === 'cargar' ? vistaCargar() : S.tab === 'parametrizacion' ? vistaParametrizacion() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : S.tab === 'riesgos' ? vistaRiesgos() : S.tab === 'historial' ? vistaHistorial() : vistaRegistro();
   if (S.tab === 'cargar') document.getElementById('mapeo').innerHTML = vistaMapeo();
   if (foco) { const el = document.getElementById(foco); if (el) { el.focus(); try { if (pos != null) el.setSelectionRange(pos, pos); } catch (e) { /* no aplica */ } } }
 }
@@ -2064,6 +2206,22 @@ document.addEventListener('click', (e) => {
   }
   else if (a === 'rk-exportar-preguntas') descargarCsv(`preguntas_consultoria_${hoyISO()}.csv`, ['Id', 'Area', 'Pregunta', 'Estado', 'Respuesta', 'Fecha', 'Por'],
       (S.riesgos.preguntas || []).map((q) => [q.id, q.area, q.texto, q.estado, q.respuesta || '', q.fecha ? q.fecha.slice(0, 10) : '', q.por || '']));
+  else if (a === 'h-guardar') { const hist = leerHistorial(); hist.push(fotoActual()); guardarLocal(CLAVE_HISTORIAL, hist); U.hA = ''; U.hB = ''; render(); }
+  else if (a === 'h-borrar') { if (confirm('¿Quitar esta foto del historial?')) { guardarLocal(CLAVE_HISTORIAL, leerHistorial().filter((f) => f.id !== t.dataset.id)); render(); } }
+  else if (a === 'h-informe') exportarInforme();
+  else if (a === 'h-respaldo') exportarRespaldo();
+  else if (a === 'h-exportar') {
+    const hist = leerHistorial(), C = S.calc;
+    const get = (id) => (id === 'actual' ? fotoActual() : hist.find((f) => f.id === id));
+    const fa = get(U.hA || (hist[hist.length - 1] || {}).id), fb = get(U.hB || (C && C.universo.length ? 'actual' : (hist[hist.length - 2] || {}).id));
+    const d = compararFotos(fa, fb), filas = [];
+    d.entran.forEach((k) => filas.push(['Entra al universo', k, fb.cuentas[k].n || '', '']));
+    d.salen.forEach((k) => filas.push(['Sale del universo', k, fa.cuentas[k].n || '', '']));
+    d.cambios.forEach((x) => { if (x.estado) filas.push([x.estado, x.k, x.nombre || '', '']); x.mas.forEach((r) => filas.push(['Rol agregado', x.k, x.nombre || '', r])); x.menos.forEach((r) => filas.push(['Rol quitado', x.k, x.nombre || '', r])); });
+    d.nuevos.forEach((k) => { const [r, uu] = k.split('|'); filas.push(['Hallazgo nuevo', uu, '', (fb.reglas || {})[r] || r]); });
+    d.resueltos.forEach((k) => { const [r, uu] = k.split('|'); filas.push(['Hallazgo resuelto', uu, '', (fa.reglas || {})[r] || r]); });
+    descargarCsv(`diferencias_${fa.fechaExtraccion}_${fb.fechaExtraccion}.csv`, ['Tipo de cambio', 'Usuario', 'Nombre', 'Rol o regla'], filas);
+  }
   else if (a === 'rk-ver') { U.rkRegla = t.dataset.regla; U.rkPag = 0; render(); document.getElementById('rkRegla').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   else if (a === 'rk-nueva-regla') { const cap = S.riesgos.capacidades[0]; S.riesgos.reglas.push({ id: 'R' + Date.now(), nombre: 'Nueva regla', tipo: 'critica', a: cap ? cap.id : '', b: '', severidad: 'media', desc: '', estado: 'propuesta' }); guardarRiesgos(); recalcular(); }
   else if (a === 'rk-borrar-regla') { if (confirm('¿Quitar esta regla?')) { S.riesgos.reglas.splice(+t.dataset.i, 1); guardarRiesgos(); recalcular(); } }
@@ -2155,6 +2313,8 @@ document.addEventListener('change', async (e) => {
     Object.assign(q, { respuesta: t.value.trim(), estado: t.value.trim() ? 'respondida' : 'abierta', fecha: new Date().toISOString(), por: S.param.responsable || '' });
     guardarRiesgos(); return render();
   }
+  if (t.id === 'hA' || t.id === 'hB') { U[t.id] = t.value; return render(); }
+  if (t.id === 'hRestaurar' && t.files[0]) { try { await importarRespaldo(t.files[0]); } catch (err) { alert('No se pudo restaurar: ' + err.message); } t.value = ''; return; }
   if (['rkArea', 'rkPregEstado'].includes(t.id)) { U[t.id] = t.value; U.rkPag = 0; return render(); }
   if (['rkRegla', 'rkSev', 'rkEstado', 'rkPais'].includes(t.id)) { U[t.id] = t.value; U.rkPag = 0; return render(); }
   if (t.id === 'rkSoloConf') { U.rkSoloConf = t.checked; U.rkPag = 0; return render(); }
