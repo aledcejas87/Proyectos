@@ -27,6 +27,11 @@ Solo se recuerdan en el navegador las reglas y decisiones del universo (exportab
 
 ## Tablas soportadas
 
+Las tablas grandes se reducen al cargarlas: de AGR_1251 y AGR_TCODES se conservan solo los roles asignados a
+usuarios (y se descartan las autorizaciones borradas), y de TSTCT solo las transacciones usadas. Por eso conviene
+cargar todo junto con "Cargar varios archivos a la vez": la app procesa primero las tablas que filtran a las demás.
+Con las 18 tablas de PRD la carga tarda alrededor de un minuto.
+
 | Grupo | Tabla | Uso |
 |---|---|---|
 | Necesarias | `USR02`, `AGR_USERS` | Cuentas y asignaciones de roles |
@@ -38,6 +43,9 @@ Solo se recuerdan en el navegador las reglas y decisiones del universo (exportab
 | | `AGR_FLAGS` | Atributos `COLL_AGR` (compuesto) y `OBSOLETE` (obsoleto) |
 | | `AGR_PROF` | Perfil generado por cada rol: separa con certeza perfiles de roles y perfiles manuales |
 | | `AGR_TEXTS` | Descripciones que falten en AGR_DEFINE (prefiere español, luego inglés) |
+| Transacciones y autorizaciones | `AGR_TCODES` | Transacciones del menú de cada rol |
+| | `TSTCT` | Descripción de las transacciones (se prefiere español) |
+| | `AGR_1251` | Objetos, campos y valores de autorización; admite varias partes (`_1`, `_2`, `_3`) que se suman |
 | Complementos | `UST04` | Perfiles asignados directamente (`SAP_ALL`, `SAP_NEW`, manuales) |
 | | `USREFUS` | Usuarios de referencia (heredan permisos sin figurar en roles) y alias |
 | | `USR21` + `ADRP` | Nombre de cada usuario |
