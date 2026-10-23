@@ -122,8 +122,9 @@ details summary { cursor: pointer; }
   <div class="marca"><b>SAP Access Control</b><span>Scienza · Uruguay y Chile</span></div>
   <nav class="tabs" id="tabs">
     <button data-tab="cargar"><span class="paso">1</span>Cargar archivos</button>
-    <button data-tab="universo"><span class="paso">2</span>Definir universo</button>
-    <button data-tab="analisis"><span class="paso">3</span>Análisis</button>
+    <button data-tab="parametrizacion"><span class="paso">2</span>Parametrización</button>
+    <button data-tab="universo"><span class="paso">3</span>Definir universo</button>
+    <button data-tab="analisis"><span class="paso">4</span>Análisis</button>
     <button data-tab="registro"><span class="paso">i</span>Registro y ayuda</button>
   </nav>
 </header>
@@ -504,24 +505,96 @@ const S = {
   datos: { USR02: null, AGR_USERS: null, AGR_1252: null, USR05: null, REF: null, UST04: null, USR21: null, ADRP: null }, // {regs, meta}
   pendiente: null, // archivo leído esperando confirmación de mapeo
   lote: [], // resultado de la carga múltiple
-  conf: Object.assign({ reglas: [], decisiones: {}, excluirTecnicas: true, sugeridasAplicadas: false, umbralRoles: 25, diasSinAcceso: 90 }, leerLocal(CLAVE_CONF, {})),
-  ui: { uFiltro: 'pendientes', uTexto: '', uPag: 0, uSel: new Set(), tokTexto: '', tokPag: 0, tokSolo: 'todos', orgCampo: '',
+  conf: Object.assign({ decisiones: {}, excluirTecnicas: true, umbralRoles: 25, diasSinAcceso: 90 }, leerLocal(CLAVE_CONF, {})),
+  param: null, paramOrigen: '',
+  ui: { uFiltro: 'pendientes', uTexto: '', uPag: 0, uSel: new Set(),
+        pEstado: 'sinconfirmar', pUso: 'conuso', pTipo: '', pCampo: '', pOrigen: '', pPais: '', pTexto: '', pPag: 0, pSel: new Set(), pSaltados: new Set(),
         aFiltro: '', aTexto: '', aPag: 0, aOrden: ['bname', 1], rTexto: '', rPag: 0, rOrden: ['enUniverso', -1] },
   calc: null,
 };
 const guardarConf = () => guardarLocal(CLAVE_CONF, S.conf);
+delete S.conf.reglas; // versión anterior: reemplazado por la parametrización
+
+// --------------------------------------------------------- parametrización
+// Definiciones de país confirmadas por el responsable: son la base fija de la
+// clasificación. Las propuestas (respuestas del 23/10, prefijos, supuestos)
+// solo se muestran para confirmar; no se usan hasta que se confirman.
+const CLAVE_PARAM = 'sapac.scienza.parametrizacion.v1';
+// Para que la parametrización sea la base en cualquier navegador (o en Apps
+// Script), pegar acá el contenido del JSON exportado desde la pestaña.
+const PARAMETRIZACION_BASE = null;
+const CAMPOS_ORG_DEFECTO = ['BUKRS', 'VKORG', 'KOKRS', 'EKORG', 'KKBER', 'VKBUR', 'VKGRP', 'WERKS', 'SWERK', 'BWKEY', 'IWERK'];
+const CAMPOS_PARAM_DEFECTO = ['BUK', 'VKO', 'CAC', 'EKO', 'KOK', '8BU', 'WRK'];
+const paramNueva = () => ({ version: 1, responsable: '', definiciones: {}, camposOrg: [...CAMPOS_ORG_DEFECTO], camposParam: [...CAMPOS_PARAM_DEFECTO], usarPropuestas: false });
+function cargarParam() {
+  const local = leerLocal(CLAVE_PARAM, null);
+  if (local) return { origen: 'navegador', p: Object.assign(paramNueva(), local) };
+  if (PARAMETRIZACION_BASE) return { origen: 'base', p: Object.assign(paramNueva(), JSON.parse(JSON.stringify(PARAMETRIZACION_BASE))) };
+  return { origen: 'nueva', p: paramNueva() };
+}
+function guardarParam() {
+  S.param.actualizado = new Date().toISOString();
+  guardarLocal(CLAVE_PARAM, S.param);
+  S.paramOrigen = 'navegador';
+}
+{ const x = cargarParam(); S.param = x.p; S.paramOrigen = x.origen; }
+
+// Campos donde el código identifica sociedad u organización, y campos de centro.
+const CAMPOS_SOCIEDAD = new Set(['BUKRS', 'VKORG', 'KOKRS', 'EKORG', 'KKBER', 'VKBUR', 'VKGRP', 'BUK', 'VKO', 'CAC', 'EKO', 'KOK', '8BU']);
+const CAMPOS_CENTRO = new Set(['WERKS', 'SWERK', 'BWKEY', 'IWERK', 'WRK']);
+const DESC_CAMPO = { BUKRS: 'Sociedad', VKORG: 'Org. de ventas', KOKRS: 'Sociedad CO', EKORG: 'Org. de compras', KKBER: 'Área de control de créditos', VKBUR: 'Oficina de ventas', VKGRP: 'Grupo de vendedores', WERKS: 'Centro', SWERK: 'Centro de mantenimiento', BWKEY: 'Ámbito de valoración', IWERK: 'Centro de planificación', VSTEL: 'Puesto de expedición', LGORT: 'Almacén', LGNUM: 'Número de almacén', EKGRP: 'Grupo de compras', VTWEG: 'Canal de distribución', SPART: 'Sector', GSBER: 'División', PRCTR: 'Centro de beneficio', ...PARAMS_ORG };
+const TIPOS_DEF = { org: 'Nivel org. de rol (AGR_1252)', param: 'Parámetro de usuario (USR05)', token: 'Parte del nombre de rol', contiene: 'Nombre de rol contiene', clase: 'Grupo de usuarios (CLASS)' };
+const claveRegla = (tipo, campo, valor) => `${tipo}|${campo || ''}|${valor}`;
+
+// Propuestas para confirmar. Las "respuestas" son las del responsable del 23/10/2026.
+const PROPUESTAS_SCIENZA = {
+  respuestas: [
+    { valores: ['SC10', 'SC20', 'SC11', 'SC12', 'SC13', 'SC14', 'SC00'], pais: 'AR', campos: 'sociedad' },
+    { valores: ['CR10', 'CR00', 'CR02'], pais: 'OTRO', campos: 'sociedad' },
+    { valores: ['IN01', 'CA01', 'IE01', 'US01', 'GB01', '0001', '0000', 'SP01', 'SP02'], pais: 'NEUTRO', campos: 'todos' },
+    { valores: ['AEUY', 'FL01', 'FT01', 'WTC1'], pais: 'UY', campos: 'centro' },
+    { valores: ['ACOP', 'CLUC', 'PI01', 'PI02', 'PI03', 'PI04', 'PI05', 'SC01'], pais: 'CL', campos: 'centro' },
+    { valores: ['GPRE', 'GVEN', 'LICE', 'MAYO'], pais: 'AR', campos: ['VKBUR'] },
+  ],
+  prefijos: [['UY', 'UY'], ['CL', 'CL'], ['AR', 'AR'], ['SC', 'AR'], ['CR', 'OTRO']],
+  tokens: { UY: 'UY', URU: 'UY', URY: 'UY', URUGUAY: 'UY', CL: 'CL', CHL: 'CL', CHILE: 'CL', AR: 'AR', ARG: 'AR', ARGENTINA: 'AR' },
+};
+function propuesta(tipo, campo, valor) {
+  if (!valor || valor === '*') return null;
+  if (tipo === 'token') {
+    const p = PROPUESTAS_SCIENZA.tokens[valor] || (/^[ZY](UY|CL|AR)$/.exec(valor) || [])[1];
+    return p ? { pais: p, origen: 'Parte de nombre con código de país', o: 'nombre' } : null;
+  }
+  if (tipo !== 'org' && tipo !== 'param') return null;
+  const esSoc = CAMPOS_SOCIEDAD.has(campo), esCentro = CAMPOS_CENTRO.has(campo);
+  for (const r of PROPUESTAS_SCIENZA.respuestas) {
+    const aplica = r.campos === 'todos' || (r.campos === 'sociedad' && esSoc) || (r.campos === 'centro' && esCentro) || (Array.isArray(r.campos) && r.campos.includes(campo));
+    if (aplica && r.valores.includes(valor)) return { pais: r.pais, origen: 'Tu respuesta del 23/10/2026', o: 'respuesta' };
+  }
+  if (esSoc) for (const [pre, p] of PROPUESTAS_SCIENZA.prefijos) if (valor.startsWith(pre)) return { pais: p, origen: `Prefijo "${pre}"`, o: 'prefijo' };
+  if (esCentro) return { pais: 'AR', origen: 'Supuesto: resto de los centros → Argentina', o: 'supuesto' };
+  return null;
+}
+function definir(items, pais) {
+  const ahora = new Date().toISOString();
+  for (const it of items) {
+    const k = claveRegla(it.tipo, it.campo, it.valor);
+    if (!pais) delete S.param.definiciones[k];
+    else S.param.definiciones[k] = { tipo: it.tipo, campo: it.campo || '', valor: it.valor, pais, fecha: ahora, por: S.param.responsable || '' };
+  }
+  guardarParam();
+  recalcular();
+}
 
 // --------------------------------------------------------- cálculo universo
 function tokensDe(agr) { return agr.split(/[^A-Z0-9]+/).filter((t) => t.length >= 2 && !/^\d+$/.test(t)); }
 
 function calcular() {
   const ref = S.fechaRef;
-  const usr = S.datos.USR02 ? S.datos.USR02.regs : [];
-  const asig = S.datos.AGR_USERS ? S.datos.AGR_USERS.regs : [];
-  const org = S.datos.AGR_1252 ? S.datos.AGR_1252.regs : [];
-  const refl = S.datos.REF ? S.datos.REF.regs : [];
   const regs = (f) => (S.datos[f] ? S.datos[f].regs : []);
-  const reglas = S.conf.reglas;
+  const usr = regs('USR02'), asig = regs('AGR_USERS'), org = regs('AGR_1252'), refl = regs('REF');
+  const P = S.param;
+  const camposOrg = new Set(P.camposOrg), camposParam = new Set(P.camposParam);
 
   // Nombre de cada usuario: USR21 (usuario → persona) + ADRP (persona → nombre)
   const nombrePorPers = {};
@@ -532,20 +605,44 @@ function calcular() {
   const perfiles = {};
   regs('UST04').forEach((x) => (perfiles[x.bname] = perfiles[x.bname] || []).push(x.perfil));
   const params = {};
-  regs('USR05').forEach((x) => { if (PARAMS_ORG[x.parid]) (params[x.bname] = params[x.bname] || []).push(x); });
+  regs('USR05').forEach((x) => { if (camposParam.has(x.parid)) (params[x.bname] = params[x.bname] || []).push(x); });
 
-  // Índices de reglas
-  const rTok = {}, rCont = [], rClase = {}, rOrg = {}, rParam = {};
-  for (const r of reglas) {
-    if (r.pais === 'NEUTRO') continue;
-    if (r.tipo === 'token') rTok[r.valor] = r.pais;
-    else if (r.tipo === 'contiene') rCont.push(r);
-    else if (r.tipo === 'clase') rClase[r.valor] = r.pais;
-    else if (r.tipo === 'org') rOrg[`${r.campo}=${r.valor}`] = r.pais;
-    else if (r.tipo === 'param') rParam[`${r.campo}=${r.valor}`] = r.pais;
-  }
+  const usuariosPorRol = {};
+  for (const a of asig) if (vigencia(a.desde, a.hasta, ref) === 'vigente') (usuariosPorRol[a.agr] = usuariosPorRol[a.agr] || new Set()).add(a.uname);
   const orgPorRol = {};
   for (const o of org) (orgPorRol[o.agr] = orgPorRol[o.agr] || []).push(o);
+
+  // Catálogo de datos que pueden indicar país, con su uso, propuesta y definición.
+  const cat = {};
+  const item = (tipo, campo, valor) => { const k = claveRegla(tipo, campo, valor); return cat[k] = cat[k] || { k, tipo, campo: campo || '', valor, roles: new Set(), usuarios: new Set() }; };
+  const sumarRol = (x, agr) => { x.roles.add(agr); for (const u of usuariosPorRol[agr] || []) x.usuarios.add(u); };
+  for (const o of org) if (camposOrg.has(o.varbl) && o.low && o.low !== '*') sumarRol(item('org', o.varbl, o.low), o.agr);
+  for (const x of regs('USR05')) if (camposParam.has(x.parid)) item('param', x.parid, x.parva).usuarios.add(x.bname);
+  for (const agr of Object.keys(usuariosPorRol)) {
+    for (const t of new Set(tokensDe(agr))) if (propuesta('token', '', t) || P.definiciones[claveRegla('token', '', t)]) sumarRol(item('token', '', t), agr);
+  }
+  for (const u of usr) if (u.clase) item('clase', '', u.clase).usuarios.add(u.bname);
+  for (const d of Object.values(P.definiciones)) {
+    const x = item(d.tipo, d.campo, d.valor);
+    if (d.tipo === 'contiene') for (const agr of Object.keys(usuariosPorRol)) if (agr.includes(d.valor)) sumarRol(x, agr);
+  }
+  const catalogo = Object.values(cat).map((x) => ({ ...x, roles: x.roles.size, usuarios: x.usuarios.size, ejemplos: [...x.roles].slice(0, 3), prop: propuesta(x.tipo, x.campo, x.valor), def: P.definiciones[x.k] || null }))
+    .sort((a, b) => b.usuarios - a.usuarios || b.roles - a.roles || a.k.localeCompare(b.k));
+  const catPorK = {};
+  catalogo.forEach((x) => (catPorK[x.k] = x));
+
+  // Reglas efectivas: solo definiciones confirmadas (o propuestas, en modo provisorio/demo).
+  const usarProp = P.usarPropuestas || S.demo;
+  const rTok = {}, rCont = [], rClase = {}, rOrg = {}, rParam = {};
+  for (const x of catalogo) {
+    const pais = x.def ? x.def.pais : (usarProp && x.prop ? x.prop.pais : '');
+    if (!pais || pais === 'NEUTRO') continue;
+    if (x.tipo === 'token') rTok[x.valor] = pais;
+    else if (x.tipo === 'contiene') rCont.push({ valor: x.valor, pais });
+    else if (x.tipo === 'clase') rClase[x.valor] = pais;
+    else if (x.tipo === 'org') rOrg[`${x.campo}=${x.valor}`] = pais;
+    else if (x.tipo === 'param') rParam[`${x.campo}=${x.valor}`] = pais;
+  }
 
   // País de un rol. El nombre del rol manda sobre los niveles organizativos.
   // Un rol solo es pista si apunta a UN país: los roles multipaís (p. ej. una
@@ -624,43 +721,6 @@ function calcular() {
   const universo = cuentas.filter((c) => c.final === 'incluir');
   const enU = new Set(universo.map((c) => c.bname));
 
-  // Tokens de roles (para descubrir convenciones de nombres)
-  const tok = {};
-  for (const a of asig) {
-    for (const t of tokensDe(a.agr)) {
-      const x = tok[t] = tok[t] || { token: t, roles: new Set(), usuarios: new Set() };
-      x.roles.add(a.agr); x.usuarios.add(a.uname);
-    }
-  }
-  const tokens = Object.values(tok).map((x) => ({ token: x.token, roles: x.roles.size, usuarios: x.usuarios.size, ejemplos: [...x.roles].slice(0, 3), pais: rTok[x.token] || '' }))
-    .sort((a, b) => b.usuarios - a.usuarios || a.token.localeCompare(b.token));
-  const clases = {};
-  usr.forEach((u) => { const k = u.clase || ''; clases[k] = (clases[k] || 0) + 1; });
-  const paramVals = {};
-  for (const x of regs('USR05')) {
-    if (!PARAMS_ORG[x.parid]) continue;
-    const k = `${x.parid}=${x.parva}`;
-    const y = paramVals[k] = paramVals[k] || { campo: x.parid, valor: x.parva, usuarios: 0, pais: (reglas.find((r) => r.tipo === 'param' && r.campo === x.parid && r.valor === x.parva) || {}).pais || '' };
-    y.usuarios++;
-  }
-  const usuariosPorRol = {};
-  for (const a of asig) if (vigencia(a.desde, a.hasta, ref) === 'vigente') (usuariosPorRol[a.agr] = usuariosPorRol[a.agr] || new Set()).add(a.uname);
-  const orgVals = {};
-  for (const o of org) {
-    const k = `${o.varbl}=${o.low}`;
-    const x = orgVals[k] = orgVals[k] || { campo: o.varbl, valor: o.low, roles: new Set(), usuarios: new Set() };
-    x.roles.add(o.agr);
-    for (const u of usuariosPorRol[o.agr] || []) x.usuarios.add(u);
-  }
-  // Preguntas pendientes: valores organizativos o parámetros con usuarios y sin país definido.
-  const conRegla = new Set(reglas.map((r) => claveRegla(r.tipo, r.campo, r.valor)));
-  const pendientes = [
-    ...Object.values(orgVals).filter((o) => o.valor && o.valor !== '*' && campoConPais(o.campo) && o.usuarios.size && !conRegla.has(claveRegla('org', o.campo, o.valor)))
-      .map((o) => ({ tipo: 'org', campo: o.campo, valor: o.valor, roles: o.roles.size, usuarios: o.usuarios.size, ejemplos: [...o.roles].slice(0, 3) })),
-    ...Object.values(regs('USR05').reduce((m, x) => { if (campoConPais(x.parid)) { const k = `${x.parid}=${x.parva}`; (m[k] = m[k] || { tipo: 'param', campo: x.parid, valor: x.parva, roles: 0, usuarios: 0, ejemplos: [] }).usuarios++; } return m; }, {}))
-      .filter((x) => !conRegla.has(claveRegla('param', x.campo, x.valor))),
-  ].sort((a, b) => b.usuarios - a.usuarios);
-
   // Roles: vista inversa
   const roles = {};
   for (const c of cuentas) for (const r of c.roles) {
@@ -670,74 +730,9 @@ function calcular() {
     else x.fuera++;
   }
   const huerfanas = [...new Set(asig.filter((a) => !porNombre[a.uname]).map((a) => a.uname))];
-  S.calc = { pendientes, tagsRol, cuentas, porNombre, universo, tokens, clases, orgVals: Object.values(orgVals), paramVals: Object.values(paramVals).sort((a, b) => b.usuarios - a.usuarios), roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
+  S.calc = { catalogo, catPorK, tagsRol, cuentas, porNombre, universo, roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
 }
 
-// Sugerencias iniciales evidentes (se pueden quitar).
-function aplicarSugeridas() {
-  if (S.conf.sugeridasAplicadas || !S.datos.AGR_USERS) return;
-  const conocidos = { UY: 'UY', URU: 'UY', URY: 'UY', URUGUAY: 'UY', CL: 'CL', CHL: 'CL', CHILE: 'CL', AR: 'AR', ARG: 'AR', ARGENTINA: 'AR' };
-  const presentes = new Set();
-  for (const a of S.datos.AGR_USERS.regs) tokensDe(a.agr).forEach((t) => presentes.add(t));
-  // También prefijos de roles de cliente: ZUY, YCL, ZAR…
-  for (const t of presentes) { const m = /^[ZY](UY|CL|AR)$/.exec(t); if (m) conocidos[t] = m[1]; }
-  for (const [t, p] of Object.entries(conocidos)) if (presentes.has(t) && !S.conf.reglas.some((r) => r.tipo === 'token' && r.valor === t)) S.conf.reglas.push({ tipo: 'token', valor: t, pais: p, auto: true });
-  S.conf.sugeridasAplicadas = true;
-  guardarConf();
-}
-
-// Campos organizativos donde el código identifica la sociedad o la organización.
-const CAMPOS_SOCIEDAD = new Set(['BUKRS', 'VKORG', 'KOKRS', 'EKORG', 'KKBER', 'VKBUR', 'VKGRP', 'BUK', 'VKO', 'CAC', 'EKO', 'KOK', '8BU']);
-const CAMPOS_CENTRO = new Set(['WERKS', 'SWERK', 'BWKEY', 'IWERK', 'WRK']);
-// Campos sobre los que la app hace preguntas cuando aparece un valor sin país.
-const campoConPais = (c) => CAMPOS_SOCIEDAD.has(c) || CAMPOS_CENTRO.has(c);
-
-// Configuración de Scienza, confirmada por el responsable del proyecto (23/10/2026).
-// Se aplica en cada carga a los valores que todavía no tienen regla; lo que se
-// cambie a mano en la pantalla siempre manda.
-const CONFIG_SCIENZA = {
-  prefijos: [[/^UY/, 'UY'], [/^CL/, 'CL'], [/^AR/, 'AR'], [/^SC/, 'AR'], [/^CR/, 'OTRO']],
-  estandarSap: ['IN01', 'CA01', 'IE01', 'US01', 'GB01', '0001', '0000', 'SP01', 'SP02'],
-  centrosUY: ['AEUY', 'FL01', 'FT01', 'WTC1'],
-  centrosCL: ['ACOP', 'CLUC', 'PI01', 'PI02', 'PI03', 'PI04', 'PI05', 'SC01'],
-  oficinasAR: ['GPRE', 'GVEN', 'LICE', 'MAYO'],
-};
-function paisSugerido(campo, valor) {
-  const C = CONFIG_SCIENZA;
-  if (!valor || valor === '*') return '';
-  if (C.estandarSap.includes(valor)) return 'NEUTRO';
-  if (CAMPOS_CENTRO.has(campo)) return C.centrosUY.includes(valor) ? 'UY' : C.centrosCL.includes(valor) ? 'CL' : 'AR';
-  if (campo === 'VKBUR' && C.oficinasAR.includes(valor)) return 'AR';
-  if (CAMPOS_SOCIEDAD.has(campo)) for (const [re, p] of C.prefijos) if (re.test(valor)) return p;
-  return '';
-}
-const claveRegla = (tipo, campo, valor) => `${tipo}|${campo || ''}|${valor}`;
-function aplicarSugeridasOrg() {
-  const descartadas = S.conf.sinSugerencia || {};
-  const existentes = new Set(S.conf.reglas.map((r) => claveRegla(r.tipo, r.campo, r.valor)));
-  const agregar = (tipo, campo, valor) => {
-    const k = claveRegla(tipo, campo, valor);
-    if (existentes.has(k) || descartadas[k]) return;
-    const p = paisSugerido(campo, valor);
-    if (!p) return;
-    S.conf.reglas.push({ tipo, campo, valor, pais: p, auto: true });
-    existentes.add(k);
-  };
-  if (S.datos.AGR_1252) S.datos.AGR_1252.regs.forEach((o) => agregar('org', o.varbl, o.low));
-  if (S.datos.USR05) S.datos.USR05.regs.forEach((x) => agregar('param', x.parid, x.parva));
-  guardarConf();
-}
-
-function setRegla(tipo, valor, pais, campo) {
-  S.conf.reglas = S.conf.reglas.filter((r) => !(r.tipo === tipo && r.valor === valor && (r.campo || '') === (campo || '')));
-  if (pais) S.conf.reglas.push({ tipo, valor, pais, campo: campo || undefined });
-  // Si se deja sin país a mano, no se vuelve a sugerir en la próxima carga.
-  S.conf.sinSugerencia = S.conf.sinSugerencia || {};
-  if (pais) delete S.conf.sinSugerencia[claveRegla(tipo, campo, valor)];
-  else S.conf.sinSugerencia[claveRegla(tipo, campo, valor)] = true;
-  guardarConf();
-  recalcular();
-}
 
 // ------------------------------------------------------------- componentes
 const tagPais = (p) => `<span class="tag ${p.toLowerCase()}"><i></i>${p}</span>`;
@@ -812,7 +807,7 @@ function vistaCargar() {
     <p class="t2" style="margin:0 0 10px">Genera usuarios ficticios de Uruguay, Chile y Argentina para recorrer el proceso completo.</p>
     <div class="fila"><button class="btn" data-accion="demo">Cargar ejemplo ficticio</button><button class="btn" data-accion="demo-archivos">Descargar archivos de ejemplo</button></div>
   </div>
-  ${S.datos.USR02 && S.datos.AGR_USERS ? '<div class="fila"><button class="btn prim" data-tab-ir="universo">Siguiente: definir universo →</button></div>' : ''}`;
+  ${S.datos.USR02 && S.datos.AGR_USERS ? '<div class="fila"><button class="btn prim" data-tab-ir="parametrizacion">Siguiente: parametrización de países →</button></div>' : ''}`;
 }
 
 function vistaMapeo() {
@@ -849,6 +844,131 @@ function vistaMapeo() {
   </div>`;
 }
 
+// ------------------------------------------------- vista: parametrización
+const tagDef = (p) => (p === 'UY' || p === 'CL' || p === 'AR' ? tagPais(p) : `<span class="tag"><i></i>${PAISES[p] || p}</span>`);
+const grupoTipo = (t) => (t === 'contiene' ? 'token' : t);
+function filtrarCatalogo() {
+  const U = S.ui;
+  let l = S.calc ? S.calc.catalogo : [];
+  if (U.pUso === 'conuso') l = l.filter((x) => x.usuarios > 0 || x.def);
+  if (U.pEstado === 'sinconfirmar') l = l.filter((x) => !x.def);
+  else if (U.pEstado === 'confirmados') l = l.filter((x) => x.def);
+  else if (U.pEstado === 'difiere') l = l.filter((x) => x.def && x.prop && x.def.pais !== x.prop.pais);
+  if (U.pTipo) l = l.filter((x) => grupoTipo(x.tipo) === U.pTipo);
+  if (U.pCampo) l = l.filter((x) => x.campo === U.pCampo);
+  if (U.pOrigen) l = l.filter((x) => (x.prop ? x.prop.o : 'ninguna') === U.pOrigen);
+  if (U.pPais) l = l.filter((x) => (x.def ? x.def.pais : x.prop ? x.prop.pais : '') === U.pPais);
+  if (U.pTexto) { const t = U.pTexto.toUpperCase(); l = l.filter((x) => x.valor.includes(t) || x.campo.includes(t) || x.ejemplos.some((e) => e.includes(t))); }
+  return l;
+}
+function vistaParametrizacion() {
+  const C = S.calc, U = S.ui, P = S.param;
+  const encabezado = `<h1>Parametrización de países</h1>
+  <p class="sub">Acá se define, una sola vez, a qué país corresponde cada dato de SAP que puede indicar país: sociedades, organizaciones, centros, parámetros de usuario y partes de nombres de roles. <b>Solo lo que confirmes se usa para clasificar usuarios.</b> Las propuestas (por tus respuestas, por prefijo o por supuesto) son una ayuda para confirmar más rápido.</p>
+  <div class="fila" style="margin-bottom:14px"><label>Responsable de las confirmaciones <input class="campo" id="pResp" value="${h(P.responsable)}" placeholder="Nombre y apellido"></label><span class="t2 peq">Queda registrado en cada definición junto con la fecha.</span></div>`;
+  const bloqueGuardar = `<div class="card"><div class="card-h"><h2>Guardar y respaldar</h2></div>
+    <p class="t2 peq" style="margin-top:0">${S.paramOrigen === 'navegador' ? 'La parametrización está guardada en este navegador' : S.paramOrigen === 'base' ? 'Se está usando la parametrización base incluida en la aplicación' : 'Todavía no hay definiciones guardadas'}${P.actualizado ? ` · última modificación ${new Date(P.actualizado).toLocaleString('es-UY')}` : ''}. Exportala como respaldo; ese archivo también se puede incorporar a la aplicación como base fija para cualquier computadora.</p>
+    <div class="fila">
+      <button class="btn" data-accion="p-exportar">Exportar parametrización (JSON)</button>
+      <button class="btn" data-accion="p-exportar-csv">Exportar definiciones (CSV)</button>
+      <label class="btn">Importar parametrización<input type="file" class="oculto" id="pImportar" accept=".json"></label>
+    </div>
+    <label class="fila" style="margin-top:10px"><input type="checkbox" id="pUsarProp" ${P.usarPropuestas ? 'checked' : ''}> Modo provisorio: usar también las propuestas sin confirmar para clasificar (solo para tener una vista previa)</label>
+  </div>`;
+  if (!C) return encabezado + '<div class="aviso warn"><b>Faltan archivos</b>Cargá AGR_USERS y AGR_1252 (y USR05 si la tenés) en el paso 1 para ver los datos a definir.</div>' + bloqueGuardar;
+
+  const enUso = C.catalogo.filter((x) => x.usuarios > 0);
+  const confirmados = enUso.filter((x) => x.def).length;
+  const conProp = enUso.filter((x) => !x.def && x.prop).length;
+  const sinProp = enUso.length - confirmados - conProp;
+  const siguiente = enUso.find((x) => !x.def && !U.pSaltados.has(x.k)) || enUso.find((x) => !x.def);
+  const lista = filtrarCatalogo();
+  const pg = paginar(lista, U.pPag, 100);
+  const campos = [...new Set(C.catalogo.map((x) => x.campo).filter(Boolean))].sort();
+  const camposAgr = S.datos.AGR_1252 ? Object.entries(S.datos.AGR_1252.regs.reduce((m, o) => ((m[o.varbl] = (m[o.varbl] || new Set()).add(o.low)), m), {})).map(([k, v]) => [k, v.size]).sort((a, b) => a[0].localeCompare(b[0])) : [];
+  const camposUsr05 = S.datos.USR05 ? [...new Set(S.datos.USR05.regs.map((x) => x.parid))].filter((x) => PARAMS_ORG[x] || P.camposParam.includes(x)).sort() : [];
+  const desc = (x) => (x.campo ? DESC_CAMPO[x.campo] || x.campo : TIPOS_DEF[x.tipo]);
+  const opcionesPais = (actual) => `<option value="">— Sin confirmar</option>${Object.entries(PAISES).map(([k, v]) => `<option value="${k}" ${actual === k ? 'selected' : ''}>${v}</option>`).join('')}`;
+
+  const guiada = siguiente ? `<div class="card" style="border-left:4px solid var(--accent)">
+    <div class="card-h"><h2>Revisión guiada <span class="muted peq">(${n(enUso.length - confirmados)} dato(s) en uso sin confirmar)</span></h2></div>
+    <p style="margin:0 0 6px">¿A qué país corresponde ${siguiente.campo ? `<b>${h(desc(siguiente))}</b> <span class="mono" style="font-size:15px">${h(siguiente.campo)} = ${h(siguiente.valor)}</span>` : `${h(TIPOS_DEF[siguiente.tipo].toLowerCase())} <span class="mono" style="font-size:15px">${h(siguiente.valor)}</span>`}?</p>
+    <p class="t2 peq" style="margin:0 0 6px">${siguiente.tipo === 'param' ? `Parámetro de usuario (USR05) de ${n(siguiente.usuarios)} usuario(s).` : `Aparece en ${n(siguiente.roles)} rol(es) asignados a ${n(siguiente.usuarios)} usuario(s)${siguiente.ejemplos.length ? `, p. ej. <span class="mono">${siguiente.ejemplos.map(h).join(', ')}</span>` : ''}.`}</p>
+    <p class="peq" style="margin:0 0 10px">${siguiente.prop ? `Propuesta: ${tagDef(siguiente.prop.pais)} <span class="t2">(${h(siguiente.prop.origen)})</span>` : '<span class="t2">Sin propuesta: elegí el país.</span>'}</p>
+    <div class="fila">
+      ${siguiente.prop ? `<button class="btn prim" data-definir="${siguiente.prop.pais}" data-k="${h(siguiente.k)}">Confirmar: ${PAISES[siguiente.prop.pais]}</button>` : ''}
+      ${Object.keys(PAISES).filter((p) => !siguiente.prop || p !== siguiente.prop.pais).map((p) => `<button class="btn" data-definir="${p}" data-k="${h(siguiente.k)}">${PAISES[p]}</button>`).join('')}
+      <button class="btn mini" data-accion="p-saltar" data-k="${h(siguiente.k)}">Después</button>
+    </div>
+  </div>` : enUso.length ? '<div class="aviso ok"><b>Todo confirmado</b>Todos los datos en uso tienen su país definido.</div>' : '';
+
+  return `${encabezado}
+  <div class="grid g6">
+    ${stat('Datos en uso', enUso.length, 'con usuarios asignados')}
+    ${stat('Confirmados', confirmados, '', 'p-f-confirmados')}
+    ${stat('Con propuesta, sin confirmar', conProp, '', 'p-f-sinconfirmar')}
+    ${stat('Sin propuesta', sinProp, 'hay que definirlos')}
+  </div>
+  <div class="card" style="margin-top:12px">${barra([['Confirmados', confirmados, 'var(--s3)'], ['Con propuesta', conProp, 'var(--s4)'], ['Sin propuesta', sinProp, 'var(--base)']])}</div>
+  ${guiada}
+  <div class="card">
+    <div class="card-h"><h2>Todas las definiciones</h2></div>
+    <div class="fila" style="margin-bottom:8px">
+      <select class="campo" id="pEstado">${[['sinconfirmar', 'Sin confirmar'], ['confirmados', 'Confirmados'], ['difiere', 'Confirmado distinto de la propuesta'], ['todos', 'Todos']].map(([k, v]) => `<option value="${k}" ${U.pEstado === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select class="campo" id="pTipo"><option value="">Todos los tipos</option>${[['org', 'Niveles org. de roles'], ['param', 'Parámetros de usuario'], ['token', 'Nombres de roles'], ['clase', 'Grupos de usuarios']].map(([k, v]) => `<option value="${k}" ${U.pTipo === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select class="campo" id="pCampo"><option value="">Todos los campos</option>${campos.map((c) => `<option value="${h(c)}" ${U.pCampo === c ? 'selected' : ''}>${h(c)} · ${h(DESC_CAMPO[c] || '')}</option>`).join('')}</select>
+      <select class="campo" id="pOrigen"><option value="">Cualquier propuesta</option>${[['respuesta', 'Tu respuesta del 23/10'], ['prefijo', 'Por prefijo'], ['supuesto', 'Supuesto (resto de centros)'], ['nombre', 'Parte de nombre'], ['ninguna', 'Sin propuesta']].map(([k, v]) => `<option value="${k}" ${U.pOrigen === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select class="campo" id="pPais"><option value="">Cualquier país</option>${Object.entries(PAISES).map(([k, v]) => `<option value="${k}" ${U.pPais === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select class="campo" id="pUso"><option value="conuso" ${U.pUso === 'conuso' ? 'selected' : ''}>Solo con usuarios</option><option value="todos" ${U.pUso === 'todos' ? 'selected' : ''}>Incluir sin uso</option></select>
+      <input class="campo" id="pTexto" placeholder="Buscar código o rol…" value="${h(U.pTexto)}">
+    </div>
+    <div class="fila" style="margin-bottom:8px">
+      <span class="t2 peq">${n(U.pSel.size)} seleccionado(s)</span>
+      <button class="btn mini" data-accion="p-sel-pagina">Seleccionar página</button>
+      <button class="btn mini" data-accion="p-sel-filtro">Seleccionar todo el filtro (${n(lista.length)})</button>
+      <button class="btn mini" data-accion="p-sel-ninguna">Limpiar selección</button>
+      <span class="peq t2">· Con los seleccionados:</span>
+      <button class="btn mini" data-pmasivo="__prop">Confirmar su propuesta</button>
+      ${Object.entries(PAISES).map(([k, v]) => `<button class="btn mini" data-pmasivo="${k}">${v}</button>`).join('')}
+      <button class="btn mini peligro" data-pmasivo="__quitar">Quitar confirmación</button>
+    </div>
+    <div class="tabla-wrap"><table class="t"><thead><tr><th></th><th>Tipo / campo</th><th>Código</th><th class="num">Roles</th><th class="num">Usuarios</th><th>Ejemplos de roles</th><th>Propuesta</th><th>País definido</th><th>Estado</th></tr></thead><tbody>
+    ${pg.items.map((x) => `<tr>
+      <td><input type="checkbox" data-psel="${h(x.k)}" ${U.pSel.has(x.k) ? 'checked' : ''} aria-label="Seleccionar ${h(x.valor)}"></td>
+      <td>${x.campo ? `<span class="mono">${h(x.campo)}</span> <span class="peq t2">${h(DESC_CAMPO[x.campo] || '')}</span>` : h(TIPOS_DEF[x.tipo])}<div class="peq muted">${h(x.campo ? TIPOS_DEF[x.tipo] : '')}</div></td>
+      <td class="mono">${h(x.valor)}</td>
+      <td class="num">${x.tipo === 'param' || x.tipo === 'clase' ? '—' : n(x.roles)}</td>
+      <td class="num">${n(x.usuarios)}</td>
+      <td class="mono t2 peq">${x.ejemplos.map(h).join('<br>') || '—'}</td>
+      <td>${x.prop ? `${tagDef(x.prop.pais)}<div class="peq t2">${h(x.prop.origen)}</div>` : '<span class="muted">Sin propuesta</span>'}</td>
+      <td><select class="campo" data-pdef="${h(x.k)}">${opcionesPais(x.def ? x.def.pais : '')}</select></td>
+      <td>${x.def ? `<span class="tag ok"><i></i>Confirmado</span><div class="peq muted">${new Date(x.def.fecha).toLocaleDateString('es-UY')}${x.def.por ? ' · ' + h(x.def.por) : ''}</div>` : x.prop ? `<button class="btn mini" data-definir="${x.prop.pais}" data-k="${h(x.k)}">Confirmar propuesta</button>` : '<span class="tag warn"><i></i>Pendiente</span>'}</td>
+    </tr>`).join('') || '<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">Nada para mostrar con este filtro.</td></tr>'}
+    </tbody></table></div>
+    ${pie(lista, pg, 'p')}
+  </div>
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><h2>Agregar una definición</h2></div>
+      <p class="t2 peq" style="margin-top:0">Para un código que todavía no aparece en las tablas, o un patrón de nombre de rol (por ejemplo, todo rol que contenga <span class="mono">_UY_</span>).</p>
+      <div class="fila">
+        <select class="campo" id="pNuevoTipo">${Object.entries(TIPOS_DEF).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+        <input class="campo mono" id="pNuevoCampo" placeholder="Campo (p. ej. BUKRS)" style="width:150px">
+        <input class="campo mono" id="pNuevoValor" placeholder="Código o texto" style="width:150px">
+        <select class="campo" id="pNuevoPais">${Object.entries(PAISES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+        <button class="btn" data-accion="p-agregar">Agregar</button>
+      </div>
+      <p class="t2 peq">El campo solo aplica a niveles organizativos y parámetros de usuario.</p>
+    </div>
+    <div class="card"><div class="card-h"><h2>Campos que indican país</h2></div>
+      <p class="t2 peq" style="margin-top:0">Qué campos se revisan. Los marcados aparecen en la lista para definir.</p>
+      ${camposAgr.length ? `<h3 style="margin-top:0">Niveles organizativos (AGR_1252)</h3><div class="fila">${camposAgr.map(([c, k]) => `<label class="tag" style="padding:4px 8px"><input type="checkbox" data-campo-org="${h(c)}" ${P.camposOrg.includes(c) ? 'checked' : ''}> <span class="mono">${h(c)}</span> <span class="muted">${h(DESC_CAMPO[c] || '')} · ${n(k)}</span></label>`).join('')}</div>` : ''}
+      ${camposUsr05.length ? `<h3>Parámetros de usuario (USR05)</h3><div class="fila">${camposUsr05.map((c) => `<label class="tag" style="padding:4px 8px"><input type="checkbox" data-campo-param="${h(c)}" ${P.camposParam.includes(c) ? 'checked' : ''}> <span class="mono">${h(c)}</span> <span class="muted">${h(PARAMS_ORG[c] || '')}</span></label>`).join('')}</div>` : ''}
+    </div>
+  </div>
+  ${bloqueGuardar}
+  <div class="fila"><button class="btn prim" data-tab-ir="universo">Siguiente: definir universo →</button></div>`;
+}
+
 // -------------------------------------------------------- vista: universo
 function vistaUniverso() {
   if (!S.datos.USR02 || !S.datos.AGR_USERS) return '<h1>Definir universo</h1><div class="aviso warn"><b>Faltan archivos</b>Cargá USR02 y AGR_USERS en el paso 1.</div>';
@@ -856,20 +976,6 @@ function vistaUniverso() {
   const cont = { incluir: 0, excluir: 0, revisar: 0 };
   C.cuentas.forEach((c) => cont[c.final]++);
   const manuales = C.cuentas.filter((c) => c.manual).length;
-
-  // --- pistas por tokens
-  let toks = C.tokens;
-  if (U.tokTexto) toks = toks.filter((t) => t.token.includes(U.tokTexto.toUpperCase()) || t.ejemplos.some((e) => e.includes(U.tokTexto.toUpperCase())));
-  if (U.tokSolo === 'asignados') toks = toks.filter((t) => t.pais);
-  const pgT = paginar(toks, U.tokPag, 25);
-  const selPais = (attrs, actual) => `<select class="campo" ${attrs}><option value="">—</option>${Object.entries(PAISES).map(([k, v]) => `<option value="${k}" ${actual === k ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
-  const contiene = S.conf.reglas.filter((r) => r.tipo === 'contiene');
-
-  // --- org
-  let orgs = C.orgVals;
-  const camposOrg = [...new Set(orgs.map((o) => o.campo))].sort();
-  if (U.orgCampo) orgs = orgs.filter((o) => o.campo === U.orgCampo);
-  const reglaOrg = (o) => (S.conf.reglas.find((r) => r.tipo === 'org' && r.campo === o.campo && r.valor === o.valor) || {}).pais || '';
 
   // --- resultado
   let lista = C.cuentas;
@@ -885,7 +991,7 @@ function vistaUniverso() {
   return `
   ${S.demo ? '<div class="banda-demo"><b>Datos de ejemplo ficticios.</b> <span class="t2">No provienen de SAP.</span></div>' : ''}
   <h1>Definir universo</h1>
-  <p class="sub">USR02 trae todos los usuarios de SAP (incluido Argentina). Acá se decide cuáles forman parte del análisis. Las pistas proponen una sugerencia; la decisión final la tomás vos, cuenta por cuenta si hace falta. Todo queda guardado en este navegador y se puede exportar.</p>
+  <p class="sub">USR02 trae todos los usuarios de SAP (incluido Argentina). Con las definiciones de país de la Parametrización, la app sugiere qué cuentas forman parte del análisis; la decisión final la tomás vos, cuenta por cuenta si hace falta.</p>
 
   <div class="grid g6">
     ${stat('Cuentas en USR02', C.cuentas.length)}
@@ -894,75 +1000,23 @@ function vistaUniverso() {
     ${stat('Excluidas', cont.excluir, '', 'u-excluidos')}
     ${stat('Decididas a mano', manuales, '', 'u-manuales')}
   </div>
-  ${C.pendientes.length ? (() => { const q = C.pendientes[0]; const nombreCampo = PARAMS_ORG[q.campo] || ETIQUETAS_CAMPO[q.campo] || q.campo; return `<div class="card" style="margin-top:12px;border-left:4px solid var(--accent)">
-    <div class="card-h"><h2>Pregunta pendiente <span class="muted peq">(quedan ${n(C.pendientes.length)})</span></h2></div>
-    <p style="margin:0 0 6px">¿A qué país corresponde <b>${h(nombreCampo)}</b> <span class="mono" style="font-size:15px">${h(q.campo)} = ${h(q.valor)}</span>?</p>
-    <p class="t2 peq" style="margin:0 0 10px">${q.tipo === 'org' ? `Aparece en ${n(q.roles)} rol(es) asignados a ${n(q.usuarios)} usuario(s)${q.ejemplos.length ? `, p. ej. <span class="mono">${q.ejemplos.map(h).join(', ')}</span>` : ''}.` : `Parámetro de usuario (USR05) de ${n(q.usuarios)} usuario(s).`}</p>
-    <div class="fila">${['UY', 'CL', 'AR', 'OTRO', 'NEUTRO'].map((p) => `<button class="btn ${p === 'UY' || p === 'CL' ? 'prim' : ''}" data-responder="${p}" data-tipo="${q.tipo}" data-campo="${h(q.campo)}" data-valor="${h(q.valor)}">${PAISES[p]}</button>`).join('')}
-      <button class="btn mini" data-accion="saltar-pregunta">Después</button></div>
-  </div>`; })() : ''}
   <div class="card" style="margin-top:12px">${barra([['En el universo', cont.incluir, 'var(--s1)'], ['Por revisar', cont.revisar, 'var(--s4)'], ['Excluidas', cont.excluir, 'var(--base)']])}</div>
-
-  <div class="card">
-    <div class="card-h"><h2>A. Pistas en los nombres de roles</h2></div>
-    <p class="t2 peq" style="margin-top:0">Los nombres de roles se dividen en partes (separadas por _ - / etc.). Asigná país a las partes que lo indiquen. Las más comunes (UY, CL, AR, URU, CHILE…) se proponen solas si aparecen. Una cuenta toma las pistas de sus roles <b>vigentes</b>. Un rol cuenta solo si apunta a un único país (el nombre del rol tiene prioridad sobre las sociedades de AGR_1252); los roles multipaís quedan neutros.</p>
-    <div class="fila" style="margin-bottom:8px">
-      <input class="campo" placeholder="Buscar parte o rol…" id="tokTexto" value="${h(U.tokTexto)}">
-      <select class="campo" id="tokSolo"><option value="todos" ${U.tokSolo === 'todos' ? 'selected' : ''}>Todas las partes</option><option value="asignados" ${U.tokSolo === 'asignados' ? 'selected' : ''}>Solo con país asignado</option></select>
-    </div>
-    <div class="tabla-wrap" style="max-height:420px"><table class="t"><thead><tr><th>Parte del nombre</th><th class="num">Roles</th><th class="num">Usuarios</th><th>Ejemplos</th><th>País</th></tr></thead><tbody>
-    ${pgT.items.map((t) => `<tr><td class="mono">${h(t.token)}</td><td class="num">${n(t.roles)}</td><td class="num">${n(t.usuarios)}</td><td class="mono t2">${t.ejemplos.map(h).join('<br>')}</td><td>${selPais(`data-regla="token" data-valor="${h(t.token)}"`, t.pais)}</td></tr>`).join('')}
-    </tbody></table></div>
-    ${pie(toks, pgT, 'tok')}
-    <h3>Patrones "contiene"</h3>
-    <p class="t2 peq" style="margin-top:0">Para convenciones sin separador (por ejemplo <span class="mono">ZUYFI_…</span>): todo rol cuyo nombre contenga el texto recibe ese país.</p>
-    <div class="fila">
-      <input class="campo mono" id="contTexto" placeholder="Texto, p. ej. ZUY">
-      ${selPais('id="contPais"', '')}
-      <button class="btn" data-accion="agregar-contiene">Agregar</button>
-    </div>
-    ${contiene.length ? `<ul style="margin:8px 0 0;padding-left:18px">${contiene.map((r) => `<li><span class="mono">${h(r.valor)}</span> → ${PAISES[r.pais]} · <button class="link" data-accion="quitar-contiene" data-valor="${h(r.valor)}">quitar</button> <span class="muted peq">(${n(Object.keys(S.calc.rolesTodos).filter((a) => a.includes(r.valor)).length)} roles con asignaciones vigentes)</span></li>`).join('')}</ul>` : ''}
-  </div>
-
-  <div class="grid g2">
-    <div class="card">
-      <div class="card-h"><h2>B. Grupo de usuarios (CLASS)</h2></div>
-      <p class="t2 peq" style="margin-top:0">Si los grupos de USR02 distinguen países, asignalos.</p>
-      <div class="tabla-wrap" style="max-height:320px"><table class="t"><thead><tr><th>Grupo</th><th class="num">Cuentas</th><th>País</th></tr></thead><tbody>
-      ${Object.entries(C.clases).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td class="mono">${h(k) || '<span class="muted">(vacío)</span>'}</td><td class="num">${n(v)}</td><td>${k ? selPais(`data-regla="clase" data-valor="${h(k)}"`, (S.conf.reglas.find((r) => r.tipo === 'clase' && r.valor === k) || {}).pais) : ''}</td></tr>`).join('')}
-      </tbody></table></div>
-    </div>
-    <div class="card">
-      <div class="card-h"><h2>C. Niveles organizativos y parámetros</h2></div>
-      <h3 style="margin-top:0">C. Niveles organizativos de roles (AGR_1252)</h3>
-      ${S.datos.AGR_1252 ? `
-        <p class="t2 peq" style="margin-top:0">Asigná país a las sociedades (BUKRS), centros, organizaciones de ventas, etc. Es la pista más confiable.</p>
-        <select class="campo" id="orgCampo" style="margin-bottom:8px"><option value="">Todos los campos</option>${camposOrg.map((c) => `<option ${U.orgCampo === c ? 'selected' : ''}>${h(c)}</option>`).join('')}</select>
-        <div class="tabla-wrap" style="max-height:280px"><table class="t"><thead><tr><th>Campo</th><th>Valor</th><th class="num">Roles</th><th>País</th></tr></thead><tbody>
-        ${orgs.sort((a, b) => b.roles.size - a.roles.size).slice(0, 300).map((o) => `<tr><td class="mono">${h(o.campo)}</td><td class="mono">${h(o.valor)}</td><td class="num">${n(o.roles.size)}</td><td>${selPais(`data-regla="org" data-campo="${h(o.campo)}" data-valor="${h(o.valor)}"`, reglaOrg(o))}</td></tr>`).join('')}
-        </tbody></table></div>`
-      : `<p class="t2" style="margin-top:0">Opcional. Si cargás <b>AGR_1252</b> en el paso 1, vas a poder indicar qué sociedades, centros u organizaciones corresponden a cada país, y la app deduce el país de cada rol a partir de esos valores.</p>`}
-      <h3>D. Parámetros de usuario (USR05)</h3>
-      ${S.datos.USR05 ? (C.paramVals.length ? `
-        <p class="t2 peq" style="margin-top:0">Valores organizativos predeterminados en el perfil de cada usuario (SU01 → Parámetros).</p>
-        <div class="tabla-wrap" style="max-height:240px"><table class="t"><thead><tr><th>Parámetro</th><th>Valor</th><th class="num">Usuarios</th><th>País</th></tr></thead><tbody>
-        ${C.paramVals.map((x) => `<tr><td><span class="mono">${h(x.campo)}</span> <span class="peq muted">${h(PARAMS_ORG[x.campo])}</span></td><td class="mono">${h(x.valor)}</td><td class="num">${n(x.usuarios)}</td><td>${selPais(`data-regla="param" data-campo="${h(x.campo)}" data-valor="${h(x.valor)}"`, x.pais)}</td></tr>`).join('')}
-        </tbody></table></div>` : '<p class="t2 peq" style="margin:0">USR05 no tiene parámetros organizativos (BUK, VKO, WRK…).</p>')
-      : '<p class="t2 peq" style="margin:0">Opcional: cargá USR05 en el paso 1.</p>'}
-      <h3>E. Lista de referencia</h3>
-      <p class="t2 peq" style="margin:0">${S.datos.REF ? `${n(S.datos.REF.regs.length)} usuarios en la lista; cuentan como "incluir".` : 'Opcional: planilla de RR. HH. o lista propia de usuarios UY/CL (paso 1).'}</p>
-      <h3>Opciones</h3>
-      <label class="fila"><input type="checkbox" id="excluirTecnicas" ${S.conf.excluirTecnicas ? 'checked' : ''}> Sugerir excluir cuentas técnicas (tipo B, C, L, S)</label>
-    </div>
-  </div>
+  ${(() => {
+    const enUso = C.catalogo.filter((x) => x.usuarios > 0);
+    const conf = Object.keys(S.param.definiciones).length, sinConf = enUso.filter((x) => !x.def).length;
+    return `<div class="card">
+    <div class="card-h"><h2>Base de la clasificación</h2><button class="btn" data-tab-ir="parametrizacion">Ir a Parametrización</button></div>
+    <p class="t2" style="margin:0 0 8px">Cada cuenta se clasifica con las <b>definiciones de país confirmadas</b> en la Parametrización (${n(conf)} confirmadas). ${sinConf ? `<b>${n(sinConf)} dato(s) en uso todavía sin confirmar</b>: hasta que los confirmes no cuentan como pista, y las cuentas que dependen de ellos quedan "Sin pistas de país".` : 'Todos los datos en uso están confirmados.'}</p>
+    ${S.param.usarPropuestas || S.demo ? '<div class="aviso warn"><b>Modo provisorio</b>Se están usando también las propuestas sin confirmar.</div>' : ''}
+    <p class="t2 peq" style="margin:0 0 8px">Un rol cuenta como pista solo si apunta a un único país (el nombre del rol tiene prioridad sobre los niveles organizativos); los roles multipaís quedan neutros. ${S.datos.REF ? `Lista de referencia: ${n(S.datos.REF.regs.length)} usuarios (cuentan como "incluir").` : ''}</p>
+    <label class="fila"><input type="checkbox" id="excluirTecnicas" ${S.conf.excluirTecnicas ? 'checked' : ''}> Sugerir excluir cuentas técnicas (tipo B, C, L, S)</label>
+  </div>`; })()}
 
   <div class="card">
     <div class="card-h"><h2>Resultado y revisión cuenta por cuenta</h2>
       <div class="fila">
         <button class="btn" data-accion="exportar-universo">Exportar universo (CSV)</button>
         <label class="btn">Importar universo<input type="file" class="oculto" id="importarUniverso" accept=".csv,.txt"></label>
-        <button class="btn" data-accion="exportar-conf">Exportar configuración</button>
-        <label class="btn">Importar configuración<input type="file" class="oculto" id="importarConf" accept=".json"></label>
       </div>
     </div>
     <p class="t2 peq" style="margin-top:0">La primera vez podés recorrer las cuentas "por revisar" y decidir una por una; las decisiones manuales siempre ganan a la sugerencia. Exportá el universo para reutilizarlo en la próxima extracción: las cuentas nuevas aparecerán como pendientes.</p>
@@ -1118,7 +1172,7 @@ function vistaRegistro() {
   </div>
   <div class="card"><h2>Datos y privacidad</h2>
     <p class="t2" style="margin-top:0">Los archivos se leen en memoria en este navegador y se descartan al cerrar la página. Solo se recuerdan las reglas y decisiones del universo (usuarios SAP, sin datos personales adicionales) en el almacenamiento local del navegador.</p>
-    <button class="btn peligro" data-accion="borrar-conf">Borrar reglas y decisiones guardadas</button>
+    <button class="btn peligro" data-accion="borrar-conf">Borrar decisiones del universo</button>
   </div>`;
 }
 
@@ -1165,13 +1219,13 @@ function fichaRol(agr) {
 }
 
 // ----------------------------------------------------------------- render
-function recalcular() { if (S.datos.USR02) calcular(); else S.calc = null; render(); }
+function recalcular() { if (S.datos.USR02 || S.datos.AGR_USERS || S.datos.AGR_1252 || S.datos.USR05) calcular(); else S.calc = null; render(); }
 function render() {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('activo', b.dataset.tab === S.tab));
   const app = document.getElementById('app');
   const foco = document.activeElement && document.activeElement.id;
   const pos = foco && document.activeElement.selectionStart;
-  app.innerHTML = S.tab === 'cargar' ? vistaCargar() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : vistaRegistro();
+  app.innerHTML = S.tab === 'cargar' ? vistaCargar() : S.tab === 'parametrizacion' ? vistaParametrizacion() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : vistaRegistro();
   if (S.tab === 'cargar') document.getElementById('mapeo').innerHTML = vistaMapeo();
   if (foco) { const el = document.getElementById(foco); if (el) { el.focus(); try { if (pos != null) el.setSelectionRange(pos, pos); } catch (e) { /* no aplica */ } } }
 }
@@ -1241,8 +1295,6 @@ function confirmarPendiente(redibujar = true) {
   const P = S.pendiente, r = P.resultado;
   S.datos[P.fuente] = { regs: r.regs, meta: { archivo: P.archivo.nombre, sha: P.archivo.sha, leidas: r.leidas, rechazadas: r.rechazadas, duplicadas: r.duplicadas, adv: [...P.archivo.adv, ...r.adv], cargado: new Date().toLocaleString('es-UY') } };
   S.pendiente = null;
-  if (P.fuente === 'AGR_USERS') aplicarSugeridas();
-  if (P.fuente === 'AGR_1252' || P.fuente === 'USR05') aplicarSugeridasOrg();
   if (redibujar) recalcular();
 }
 function decidir(bnames, d, pais) {
@@ -1258,11 +1310,26 @@ function decidir(bnames, d, pais) {
 document.getElementById('tabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-tab]'); if (b) { S.tab = b.dataset.tab; render(); window.scrollTo(0, 0); } });
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-responder],[data-accion],[data-tab-ir],[data-ficha],[data-rol],[data-pag],[data-masivo],[data-decidir],[data-orden],[data-revisar-lote]');
+  const t = e.target.closest('[data-definir],[data-pmasivo],[data-accion],[data-tab-ir],[data-ficha],[data-rol],[data-pag],[data-masivo],[data-decidir],[data-orden],[data-revisar-lote]');
   if (!t) return;
   const U = S.ui;
   if (t.dataset.tabIr) { S.tab = t.dataset.tabIr; render(); window.scrollTo(0, 0); return; }
-  if (t.dataset.responder) return setRegla(t.dataset.tipo, t.dataset.valor, t.dataset.responder, t.dataset.campo);
+  if (t.dataset.definir) { const x = S.calc.catPorK[t.dataset.k]; U.pSel.delete(t.dataset.k); return definir([x], t.dataset.definir); }
+  if (t.dataset.pmasivo !== undefined) {
+    const items = [...U.pSel].map((k) => S.calc.catPorK[k]).filter(Boolean);
+    if (!items.length) return alert('Seleccioná al menos un dato.');
+    const v = t.dataset.pmasivo;
+    if (v === '__prop') {
+      const conProp = items.filter((x) => x.prop);
+      const ahora = new Date().toISOString();
+      for (const x of conProp) S.param.definiciones[x.k] = { tipo: x.tipo, campo: x.campo, valor: x.valor, pais: x.prop.pais, fecha: ahora, por: S.param.responsable || '' };
+      if (conProp.length < items.length) alert(`${items.length - conProp.length} dato(s) seleccionados no tienen propuesta y quedaron sin confirmar.`);
+      guardarParam(); U.pSel.clear(); return recalcular();
+    }
+    if (v === '__quitar' && !confirm(`¿Quitar la confirmación de ${items.length} dato(s)?`)) return;
+    U.pSel.clear();
+    return definir(items, v === '__quitar' ? '' : v);
+  }
   if (t.dataset.ficha) return fichaCuenta(t.dataset.ficha);
   if (t.dataset.revisarLote) {
     const x = S.lote[+t.dataset.revisarLote];
@@ -1284,17 +1351,25 @@ document.addEventListener('click', (e) => {
   if (a === 'cerrar-cajon') document.getElementById('cajon-raiz').innerHTML = '';
   else if (a === 'quitar') { S.datos[t.dataset.f] = null; recalcular(); }
   else if (a === 'cancelar-mapeo') { S.pendiente = null; render(); }
-  else if (a === 'saltar-pregunta') { const q = S.calc.pendientes.shift(); S.calc.pendientes.push(q); render(); }
+  else if (a === 'p-saltar') { U.pSaltados.add(t.dataset.k); render(); }
+  else if (a === 'p-sel-pagina') { document.querySelectorAll('[data-psel]').forEach((x) => U.pSel.add(x.dataset.psel)); render(); }
+  else if (a === 'p-sel-filtro') { filtrarCatalogo().forEach((x) => U.pSel.add(x.k)); render(); }
+  else if (a === 'p-sel-ninguna') { U.pSel.clear(); render(); }
+  else if (a === 'p-f-confirmados' || a === 'p-f-sinconfirmar') { U.pEstado = a.slice(4); U.pPag = 0; render(); }
+  else if (a === 'p-agregar') {
+    const tipo = document.getElementById('pNuevoTipo').value;
+    const campo = (tipo === 'org' || tipo === 'param') ? document.getElementById('pNuevoCampo').value.trim().toUpperCase().replace(/^\$/, '') : '';
+    const valor = document.getElementById('pNuevoValor').value.trim().toUpperCase();
+    if (!valor || ((tipo === 'org' || tipo === 'param') && !campo)) return alert('Completá el código' + (tipo === 'org' || tipo === 'param' ? ' y el campo.' : '.'));
+    definir([{ tipo, campo, valor }], document.getElementById('pNuevoPais').value);
+  }
+  else if (a === 'p-exportar') descargar(`parametrizacion_paises_scienza_${hoyISO()}.json`, JSON.stringify(S.param, null, 2), 'application/json');
+  else if (a === 'p-exportar-csv') descargarCsv(`definiciones_paises_${hoyISO()}.csv`, ['Tipo', 'Campo', 'Codigo', 'Pais', 'Confirmado el', 'Confirmado por', 'Propuesta', 'Origen propuesta', 'Usuarios', 'Roles'],
+      Object.values(S.param.definiciones).map((d) => { const x = S.calc && S.calc.catPorK[claveRegla(d.tipo, d.campo, d.valor)]; const pr = propuesta(d.tipo, d.campo, d.valor); return [TIPOS_DEF[d.tipo], d.campo, d.valor, PAISES[d.pais], d.fecha.slice(0, 10), d.por, pr ? PAISES[pr.pais] : '', pr ? pr.origen : '', x ? x.usuarios : 0, x ? x.roles : 0]; }));
   else if (a === 'validar') { validarPendiente(); render(); }
   else if (a === 'confirmar') confirmarPendiente();
   else if (a === 'demo') cargarDemo();
   else if (a === 'demo-archivos') { const d = generarDemo(); descargar('ejemplo_USR02.csv', d.USR02); descargar('ejemplo_AGR_USERS.csv', d.AGR_USERS); for (const f of ['AGR_1252', 'USR21', 'ADRP', 'USR05', 'UST04']) descargar(`ejemplo_${f}.csv`, d[f]); }
-  else if (a === 'agregar-contiene') {
-    const v = document.getElementById('contTexto').value.trim().toUpperCase(), p = document.getElementById('contPais').value;
-    if (!v || !p) return alert('Indicá el texto y el país.');
-    setRegla('contiene', v, p);
-  }
-  else if (a === 'quitar-contiene') setRegla('contiene', t.dataset.valor, '');
   else if (a === 'sel-pagina') { document.querySelectorAll('[data-sel]').forEach((x) => U.uSel.add(x.dataset.sel)); render(); }
   else if (a === 'sel-filtro') { const v = U.uFiltro; S.calc.cuentas.filter((c) => v === 'todas' || (v === 'pendientes' && c.final === 'revisar') || (v === 'incluidos' && c.final === 'incluir') || (v === 'excluidos' && c.final === 'excluir') || (v === 'manuales' && c.manual) || (v === 'sinpais' && c.final === 'incluir' && !c.pais.length))
       .filter((c) => !U.uTexto || c.bname.includes(U.uTexto.toUpperCase()) || c.clase.includes(U.uTexto.toUpperCase()) || c.nombre.toUpperCase().includes(U.uTexto.toUpperCase()) || c.vigentes.some((r) => r.includes(U.uTexto.toUpperCase()))).forEach((c) => U.uSel.add(c.bname)); render(); }
@@ -1305,7 +1380,6 @@ document.addEventListener('click', (e) => {
     descargarCsv(`universo_${S.fechaRef}.csv`, ['Usuario', 'Nombre', 'Decision', 'Origen', 'Pais', 'Tipo', 'Grupo', 'Motivo sugerencia', 'Pistas', 'Fecha extraccion'],
       S.calc.cuentas.map((c) => [c.bname, c.nombre, c.final, c.manual ? 'manual' : 'sugerencia', c.pais.join('+'), c.ustyp, c.clase, c.motivo, Object.entries(c.ev).filter(([, v]) => v).map(([k, v]) => `${k}:${v}`).join(' '), S.fechaRef]));
   }
-  else if (a === 'exportar-conf') descargar(`configuracion_universo_${hoyISO()}.json`, JSON.stringify(S.conf, null, 2), 'application/json');
   else if (a === 'exportar-cuentas') {
     const P = S.conf;
     descargarCsv(`cuentas_universo_${S.fechaRef}.csv`, ['Usuario', 'Pais', 'Nombre', 'Perfiles directos', 'Tipo', 'Bloqueada', 'Motivo bloqueo', 'Valido desde', 'Valido hasta', 'Ultimo acceso', 'Grupo', 'Roles vigentes', 'Senales', 'Fecha extraccion'],
@@ -1313,7 +1387,7 @@ document.addEventListener('click', (e) => {
   }
   else if (a === 'exportar-roles') descargarCsv(`roles_universo_${S.fechaRef}.csv`, ['Rol', 'Cuentas del universo', 'UY', 'CL', 'Fuera del universo', 'Pais segun pistas'],
       S.calc.roles.map((r) => [r.agr, r.enUniverso, r.uy, r.cl, r.fuera, (() => { const x = S.calc.paisesDeRol(r.agr); return x.paises.join('+') || (x.multi.length ? 'Multipaís ' + x.multi.join('+') : ''); })()]));
-  else if (a === 'borrar-conf') { if (confirm('¿Borrar todas las reglas y decisiones del universo guardadas en este navegador?')) { S.conf = { reglas: [], decisiones: {}, excluirTecnicas: true, sugeridasAplicadas: false, umbralRoles: 25, diasSinAcceso: 90 }; guardarConf(); aplicarSugeridas(); aplicarSugeridasOrg(); recalcular(); } }
+  else if (a === 'borrar-conf') { if (confirm('¿Borrar las decisiones del universo (incluir/excluir por cuenta) guardadas en este navegador? La parametrización de países no se borra.')) { S.conf = { decisiones: {}, excluirTecnicas: true, umbralRoles: 25, diasSinAcceso: 90 }; guardarConf(); recalcular(); } }
 });
 
 document.addEventListener('change', async (e) => {
@@ -1325,14 +1399,30 @@ document.addEventListener('change', async (e) => {
   if (t.id === 'mapeo-hoja') { const P = S.pendiente; P.hoja = +t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
   if (t.id === 'mapeo-fe') { const P = S.pendiente; P.fe = Math.max(0, +t.value - 1); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
   if (t.dataset.mapeo !== undefined) { const P = S.pendiente; if (t.value) P.mapeo[t.dataset.mapeo] = t.value; else delete P.mapeo[t.dataset.mapeo]; P.resultado = null; return render(); }
-  if (t.dataset.regla) return setRegla(t.dataset.regla, t.dataset.valor, t.value, t.dataset.campo);
+  if (t.dataset.pdef) { U.pSel.delete(t.dataset.pdef); return definir([S.calc.catPorK[t.dataset.pdef]], t.value); }
+  if (t.dataset.psel) { if (t.checked) U.pSel.add(t.dataset.psel); else U.pSel.delete(t.dataset.psel); return render(); }
+  if (t.dataset.campoOrg || t.dataset.campoParam) {
+    const lista = t.dataset.campoOrg ? 'camposOrg' : 'camposParam', c = t.dataset.campoOrg || t.dataset.campoParam;
+    S.param[lista] = t.checked ? [...new Set([...S.param[lista], c])] : S.param[lista].filter((x) => x !== c);
+    guardarParam(); return recalcular();
+  }
+  if (['pEstado', 'pTipo', 'pCampo', 'pOrigen', 'pPais', 'pUso'].includes(t.id)) { U[t.id] = t.value; U.pPag = 0; return render(); }
+  if (t.id === 'pResp') { S.param.responsable = t.value.trim(); guardarParam(); return; }
+  if (t.id === 'pUsarProp') { S.param.usarPropuestas = t.checked; guardarParam(); return recalcular(); }
+  if (t.id === 'pImportar' && t.files[0]) {
+    try {
+      const x = JSON.parse(await t.files[0].text());
+      if (!x || typeof x.definiciones !== 'object') throw new Error('el archivo no es una parametrización exportada por esta aplicación');
+      if (Object.keys(S.param.definiciones).length && !confirm(`Se reemplazará la parametrización actual (${Object.keys(S.param.definiciones).length} definiciones) por la del archivo (${Object.keys(x.definiciones).length}). ¿Continuar?`)) { t.value = ''; return; }
+      S.param = Object.assign(paramNueva(), x); guardarParam(); t.value = ''; recalcular();
+    } catch (err) { alert('No se pudo importar: ' + err.message); }
+    return;
+  }
   if (t.dataset.decision !== undefined) return decidir([t.dataset.decision], t.value);
   if (t.dataset.paisCuenta !== undefined) { const b = t.dataset.paisCuenta; const d = S.conf.decisiones[b] || {}; S.conf.decisiones[b] = Object.assign({}, d, { d: d.d || 'incluir', pais: t.value, fecha: new Date().toISOString() }); guardarConf(); return recalcular(); }
   if (t.dataset.sel) { if (t.checked) U.uSel.add(t.dataset.sel); else U.uSel.delete(t.dataset.sel); return render(); }
   if (t.id === 'excluirTecnicas') { S.conf.excluirTecnicas = t.checked; guardarConf(); return recalcular(); }
   if (t.id === 'uFiltro') { U.uFiltro = t.value; U.uPag = 0; return render(); }
-  if (t.id === 'tokSolo') { U.tokSolo = t.value; U.tokPag = 0; return render(); }
-  if (t.id === 'orgCampo') { U.orgCampo = t.value; return render(); }
   if (t.id === 'aFiltro') { U.aFiltro = t.value; U.aPag = 0; return render(); }
   if (t.id === 'pDias') { S.conf.diasSinAcceso = Math.max(1, +t.value || 90); guardarConf(); return render(); }
   if (t.id === 'pRoles') { S.conf.umbralRoles = Math.max(1, +t.value || 25); guardarConf(); return render(); }
@@ -1353,16 +1443,12 @@ document.addEventListener('change', async (e) => {
     guardarConf(); t.value = ''; recalcular();
     alert(`Se importaron ${k} decisiones manuales. Las cuentas que no estaban en el archivo quedan según sugerencia.`);
   }
-  if (t.id === 'importarConf' && t.files[0]) {
-    try { S.conf = Object.assign({ reglas: [], decisiones: {} }, JSON.parse(await t.files[0].text())); guardarConf(); t.value = ''; recalcular(); }
-    catch (err) { alert('No se pudo leer la configuración: ' + err.message); }
-  }
 });
 
 let temporizador;
 document.addEventListener('input', (e) => {
   const t = e.target, U = S.ui;
-  const mapa = { uTexto: ['uTexto', 'uPag'], tokTexto: ['tokTexto', 'tokPag'], aTexto: ['aTexto', 'aPag'], rTexto: ['rTexto', 'rPag'] };
+  const mapa = { uTexto: ['uTexto', 'uPag'], pTexto: ['pTexto', 'pPag'], aTexto: ['aTexto', 'aPag'], rTexto: ['rTexto', 'rPag'] };
   if (!mapa[t.id]) return;
   U[mapa[t.id][0]] = t.value; U[mapa[t.id][1]] = 0;
   clearTimeout(temporizador); temporizador = setTimeout(render, 250);
@@ -1450,8 +1536,6 @@ async function cargarDemo() {
   }
   S.fechaRef = d.ref;
   S.demo = true;
-  aplicarSugeridas();
-  aplicarSugeridasOrg();
   recalcular();
 }
 

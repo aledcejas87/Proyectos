@@ -42,23 +42,23 @@ Las exportaciones de SE16N de PRD llegan con encabezados en español ("Usuarios"
 "ID parámetro Set/Get", "Perfil"…) en una hoja llamada `Data`; se reconocen automáticamente. Con la carga
 múltiple, cada archivo se identifica por el nombre de la tabla en el nombre del archivo.
 
-## Configuración de Scienza (países)
+## Parametrización de países
 
-Confirmada el 23/10/2026 y aplicada en cada carga (`CONFIG_SCIENZA` en `Index.html`):
+La pestaña **Parametrización** (paso 2) define, una sola vez, a qué país corresponde cada dato de SAP que
+puede indicar país: sociedades, organizaciones de ventas y compras, sociedad CO, centros, oficinas de
+ventas (AGR_1252), parámetros de usuario (USR05), partes de nombres de roles y grupos de usuarios.
 
-| Códigos | País |
-|---|---|
-| Sociedades / org. de ventas, compras, CO con prefijo `UY…` | Uruguay |
-| Prefijo `CL…` | Chile |
-| Prefijo `SC…` (SC00, SC10–SC14, SC20) y `AR…` | Argentina |
-| Prefijo `CR…` (CR00, CR02, CR10) | Otro país, fuera del alcance |
-| `IN01`, `CA01`, `IE01`, `US01`, `GB01`, `0001`, `0000`, `SP01`, `SP02` | Estándar SAP sin uso (se ignoran) |
-| Centros `AEUY`, `FL01`, `FT01`, `WTC1` | Uruguay |
-| Centros `ACOP`, `CLUC`, `PI01`–`PI05`, `SC01` | Chile |
-| Resto de los centros; oficinas de ventas `GPRE`, `GVEN`, `LICE`, `MAYO` | Argentina |
-
-Si en una carga aparece un código organizativo nuevo sin país, la pantalla "Definir universo" lo pregunta
-de a uno ("Pregunta pendiente"). Las respuestas y cualquier cambio manual quedan guardados en el navegador.
+- **Solo las definiciones confirmadas** se usan para clasificar usuarios en "Definir universo".
+- Cada dato muestra una **propuesta** con su origen, para confirmar más rápido. Los orígenes son las
+  respuestas del responsable del 23/10/2026, un prefijo (`UY`, `CL`, `AR`, `SC` → AR, `CR` → fuera de
+  alcance) o un supuesto (resto de los centros → AR). La propuesta nunca se aplica sola.
+- Se confirma de a uno (revisión guiada o tabla) o en bloque, sobre los datos seleccionados.
+  Cada definición guarda fecha y responsable.
+- Si una carga trae un código nuevo, aparece como "sin confirmar".
+- Se guarda en el navegador y se exporta/importa como JSON. Para que sea la base fija en cualquier
+  computadora o en Apps Script, el JSON exportado se pega en la constante `PARAMETRIZACION_BASE`
+  de `Index.html`.
+- La opción "Modo provisorio" permite ver el universo usando también las propuestas sin confirmar.
 
 Las tablas se cargan completas, tal como salen de SE16N: la app toma las columnas que necesita e ignora
 el resto, incluidas las de contraseñas, que nunca se leen ni se guardan.
