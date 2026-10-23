@@ -25,6 +25,23 @@ Solo se recuerdan en el navegador las reglas y decisiones del universo (exportab
    la decisión manual siempre gana. El universo se exporta a CSV y se vuelve a importar en la próxima extracción.
 3. **Análisis**: indicadores, señales, cuentas y roles (consulta inversa) solo del universo, con exportación CSV.
 
+## Tablas soportadas
+
+| Grupo | Tabla | Uso |
+|---|---|---|
+| Necesarias | `USR02`, `AGR_USERS` | Cuentas y asignaciones de roles |
+| Pistas de país | `AGR_1252` | Sociedad / centro / org. de ventas de cada rol |
+| | `USR05` | Parámetros organizativos del usuario (`BUK`, `VKO`, `WRK`, `CAC`…) |
+| | Lista de referencia | Usuarios UY/CL de RR. HH. o lista propia |
+| Complementos | `UST04` | Perfiles asignados directamente (`SAP_ALL`, `SAP_NEW`, manuales) |
+| | `USR21` + `ADRP` | Nombre de cada usuario |
+
+`ADRC` no se usa: en Scienza todos los usuarios comparten la misma dirección de empresa, así que no indica país.
+
+Las exportaciones de SE16N de PRD llegan con encabezados en español ("Usuarios", "Número de persona",
+"ID parámetro Set/Get", "Perfil"…) en una hoja llamada `Data`; se reconocen automáticamente. Con la carga
+múltiple, cada archivo se identifica por el nombre de la tabla en el nombre del archivo.
+
 ## Seguridad
 
 El repositorio es **público**. Nunca subir extracciones reales, universos exportados ni configuraciones con

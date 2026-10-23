@@ -247,10 +247,10 @@ function leerPaises(c) {
 // El mapeo siempre se puede corregir en pantalla.
 const FUENTES = {
   USR02: {
-    titulo: 'USR02 — Cuentas de usuario', obligatoria: true,
+    titulo: 'USR02 — Cuentas de usuario', obligatoria: true, grupo: 'base',
     ayuda: 'SE16N → USR02. Campos: BNAME, USTYP, UFLAG, GLTGV, GLTGB, TRDAT, LTIME, CLASS. Sin filtrar por país: el universo se define en el paso 2.',
     campos: [
-      ['bname', 'BNAME — Usuario', true, ['bname', 'usuario', 'nombre de usuario', 'nombre usuario', 'user', 'user name', 'benutzer', 'benutzername']],
+      ['bname', 'BNAME — Usuario', true, ['bname', 'usuarios', 'usuario', 'nombre de usuario', 'nombre usuario', 'user', 'user name', 'benutzer', 'benutzername']],
       ['ustyp', 'USTYP — Tipo de usuario', false, ['ustyp', 'tipo de usuario', 'tipo usuario', 'user type', 'benutzertyp']],
       ['uflag', 'UFLAG — Bloqueo', false, ['uflag', 'status bloqueo usuario', 'estado bloqueo usuario', 'bloqueo de usuario', 'bloqueo usuario', 'user lock status', 'lock status', 'benutzersperre', 'sperrkennzeichen']],
       ['gltgv', 'GLTGV — Válido desde', false, ['gltgv', 'valido desde', 'usuario valido desde', 'valid from', 'gultig von']],
@@ -261,10 +261,10 @@ const FUENTES = {
     ],
   },
   AGR_USERS: {
-    titulo: 'AGR_USERS — Asignaciones de roles', obligatoria: true,
+    titulo: 'AGR_USERS — Asignaciones de roles', obligatoria: true, grupo: 'base',
     ayuda: 'SE16N → AGR_USERS. Campos: UNAME, AGR_NAME, FROM_DAT, TO_DAT, COL_FLAG, ORG_FLAG. Incluí asignaciones vencidas.',
     campos: [
-      ['uname', 'UNAME — Usuario', true, ['uname', 'usuario', 'nombre de usuario', 'user', 'user name', 'benutzer']],
+      ['uname', 'UNAME — Usuario', true, ['uname', 'usuarios', 'usuario', 'nombre de usuario', 'user', 'user name', 'benutzer']],
       ['agr', 'AGR_NAME — Rol', true, ['agr name', 'agrname', 'rol', 'nombre de rol', 'nombre del rol', 'role', 'role name', 'rolle']],
       ['desde', 'FROM_DAT — Desde', false, ['from dat', 'fromdat', 'fecha inicio', 'fecha de inicio', 'valido desde', 'start date', 'valid from']],
       ['hasta', 'TO_DAT — Hasta', false, ['to dat', 'todat', 'fecha fin', 'fecha de fin', 'valido hasta', 'end date', 'valid to']],
@@ -273,7 +273,7 @@ const FUENTES = {
     ],
   },
   AGR_1252: {
-    titulo: 'AGR_1252 — Niveles organizativos (opcional)', obligatoria: false,
+    titulo: 'AGR_1252 — Niveles organizativos (opcional)', obligatoria: false, grupo: 'pistas',
     ayuda: 'SE16N → AGR_1252: valores de sociedad (BUKRS), centro (WERKS), org. de ventas (VKORG), etc. por rol. Es la pista más confiable para saber el país de un rol.',
     campos: [
       ['agr', 'AGR_NAME — Rol', true, ['agr name', 'agrname', 'rol', 'nombre de rol', 'role', 'role name']],
@@ -282,11 +282,46 @@ const FUENTES = {
       ['high', 'HIGH — Valor hasta', false, ['high', 'valor hasta', 'a valor', 'hasta valor', 'to', 'bis']],
     ],
   },
+  USR05: {
+    titulo: 'USR05 — Parámetros de usuario (opcional)', obligatoria: false, grupo: 'pistas',
+    ayuda: 'SE16N → USR05. Campos: BNAME, PARID, PARVA. Parámetros como BUK (sociedad), VKO (org. ventas) o WRK (centro) son pista de país.',
+    campos: [
+      ['bname', 'BNAME — Usuario', true, ['bname', 'usuarios', 'usuario', 'user']],
+      ['parid', 'PARID — Parámetro', true, ['parid', 'id parametro set get', 'id parametro', 'parametro', 'parameter id']],
+      ['parva', 'PARVA — Valor', true, ['parva', 'valor parametro', 'valor', 'parameter value']],
+    ],
+  },
+  UST04: {
+    titulo: 'UST04 — Perfiles por usuario (opcional)', obligatoria: false, grupo: 'complementos',
+    ayuda: 'SE16N → UST04. Campos: BNAME, PROFILE. Detecta perfiles asignados directamente (SAP_ALL, SAP_NEW…), que no aparecen en AGR_USERS.',
+    campos: [
+      ['bname', 'BNAME — Usuario', true, ['bname', 'usuarios', 'usuario', 'user']],
+      ['perfil', 'PROFILE — Perfil', true, ['profile', 'perfil', 'profil']],
+    ],
+  },
+  USR21: {
+    titulo: 'USR21 — Usuario ↔ persona (opcional)', obligatoria: false, grupo: 'complementos',
+    ayuda: 'SE16N → USR21. Campos: BNAME, PERSNUMBER. Junto con ADRP muestra el nombre de cada usuario.',
+    campos: [
+      ['bname', 'BNAME — Usuario', true, ['bname', 'usuarios', 'usuario', 'user']],
+      ['pers', 'PERSNUMBER — Nº de persona', true, ['persnumber', 'numero de persona', 'n de persona', 'person number']],
+    ],
+  },
+  ADRP: {
+    titulo: 'ADRP — Nombres de personas (opcional)', obligatoria: false, grupo: 'complementos',
+    ayuda: 'SE16N → ADRP. Campos: PERSNUMBER, NAME_FIRST, NAME_LAST, NAME_TEXT. Se cruza con USR21.',
+    campos: [
+      ['pers', 'PERSNUMBER — Nº de persona', true, ['persnumber', 'numero de persona', 'n de persona', 'person number']],
+      ['nombre', 'NAME_FIRST — Nombre', false, ['name first', 'nombre', 'nombre pila', 'first name']],
+      ['apellido', 'NAME_LAST — Apellido', false, ['name last', 'apellido', 'last name']],
+      ['completo', 'NAME_TEXT — Nombre completo', false, ['name text', 'nombre completo', 'full name']],
+    ],
+  },
   REF: {
-    titulo: 'Lista de referencia UY/CL (opcional)', obligatoria: false,
+    titulo: 'Lista de referencia UY/CL (opcional)', obligatoria: false, grupo: 'pistas',
     ayuda: 'Planilla de RR. HH. o lista armada a mano con los usuarios SAP de Uruguay y Chile. Columnas: usuario SAP y, si se tiene, país, nombre, área y estado.',
     campos: [
-      ['usuario', 'Usuario SAP', true, ['usuario sap', 'usuario', 'user sap', 'sap user', 'bname', 'cuenta sap', 'id sap']],
+      ['usuario', 'Usuario SAP', true, ['usuario sap', 'usuarios', 'usuario', 'user sap', 'sap user', 'bname', 'cuenta sap', 'id sap']],
       ['pais', 'País', false, ['pais', 'pais de operacion', 'paises de operacion', 'opera en', 'country']],
       ['nombre', 'Nombre', false, ['nombre', 'nombre completo', 'nombre y apellido', 'apellido y nombre', 'empleado', 'colaborador', 'full name']],
       ['area', 'Área', false, ['area', 'departamento', 'gerencia', 'sector']],
@@ -294,6 +329,11 @@ const FUENTES = {
     ],
   },
 };
+// Perfiles generados por PFCG a partir de roles: T-xxNNNN. El resto se asignó directamente.
+const esPerfilGenerado = (p) => /^T-/.test(p);
+const PERFILES_CRITICOS = new Set(['SAP_ALL', 'SAP_NEW']);
+// Parámetros de usuario que identifican estructura organizativa (pista de país).
+const PARAMS_ORG = { BUK: 'Sociedad', VKO: 'Org. de ventas', VTW: 'Canal', SPA: 'Sector', WRK: 'Centro', LAG: 'Almacén', EKO: 'Org. de compras', EKG: 'Grupo de compras', CAC: 'Sociedad CO', KOK: 'Sociedad CO', GSB: 'División', PRC: 'Centro de beneficio', VST: 'Puesto de expedición', VKB: 'Oficina de ventas', '8BU': 'Sociedad (otro)' };
 const SENSIBLES = new Set(['bcode', 'passcode', 'pwdsaltedhash', 'codvn', 'codvc', 'codvs', 'ocod1', 'ocod2', 'ocod3', 'ocod4', 'ocod5', 'pwdhistory', 'security policy']);
 const esSensible = (enc) => { const x = norm(enc); return SENSIBLES.has(x) || /contrasena|password|passwort|kennwort|hash|pwd/.test(x); };
 function sugerirCampo(fuente, enc) { const x = norm(enc); const c = FUENTES[fuente].campos.find((c) => c[3].includes(x)); return c ? c[0] : null; }
@@ -400,6 +440,34 @@ function procesar(fuente, tabla, mapeo) {
       if (claves.has(k)) return duplicadas++;
       claves.add(k);
       regs.push({ agr, varbl, low, high: txt(val(f, 'high')).toUpperCase() });
+    } else if (fuente === 'USR05') {
+      const bname = usuario(val(f, 'bname')), parid = txt(val(f, 'parid')).toUpperCase(), parva = txt(val(f, 'parva')).toUpperCase();
+      if (!bname || !parid) return rech.push(`Fila ${nf}: usuario o parámetro vacío`);
+      if (!parva) return; // parámetro sin valor: no aporta
+      const k = `${bname}|${parid}|${parva}`;
+      if (claves.has(k)) return duplicadas++;
+      claves.add(k);
+      regs.push({ bname, parid, parva });
+    } else if (fuente === 'UST04') {
+      const bname = usuario(val(f, 'bname')), perfil = txt(val(f, 'perfil')).toUpperCase();
+      if (!bname || !perfil) return rech.push(`Fila ${nf}: usuario o perfil vacío`);
+      const k = `${bname}|${perfil}`;
+      if (claves.has(k)) return duplicadas++;
+      claves.add(k);
+      regs.push({ bname, perfil });
+    } else if (fuente === 'USR21') {
+      const bname = usuario(val(f, 'bname')), pers = txt(val(f, 'pers'));
+      if (!bname) return rech.push(`Fila ${nf}: usuario vacío`);
+      if (claves.has(bname)) return duplicadas++;
+      claves.add(bname);
+      if (pers) regs.push({ bname, pers });
+    } else if (fuente === 'ADRP') {
+      const pers = txt(val(f, 'pers'));
+      if (!pers) return rech.push(`Fila ${nf}: número de persona vacío`);
+      if (claves.has(pers)) return duplicadas++; // ADRP puede traer varias versiones: se toma la primera
+      claves.add(pers);
+      const nombre = txt(val(f, 'nombre')), apellido = txt(val(f, 'apellido'));
+      regs.push({ pers, nombre: txt(val(f, 'completo')) || [nombre, apellido].filter(Boolean).join(' ') });
     } else {
       const usuarios = txt(val(f, 'usuario')).split(/[;,/\s]+/).map(usuario).filter(Boolean);
       if (!usuarios.length) return rech.push(`Fila ${nf}: sin usuario SAP`);
@@ -411,6 +479,10 @@ function procesar(fuente, tabla, mapeo) {
     }
   });
   for (const [c, k] of Object.entries(malas)) adv.push(`${k} fila(s) con ${c.toUpperCase()} no interpretable como fecha (quedó vacía).`);
+  if (fuente === 'UST04') {
+    const directos = regs.filter((r) => !esPerfilGenerado(r.perfil));
+    if (directos.length) adv.push(`${directos.length} asignación(es) de perfiles que no son generados por roles (p. ej. ${[...new Set(directos.map((r) => r.perfil))].slice(0, 5).join(', ')}).`);
+  }
   if (numericos) adv.push(`${numericos} usuario(s) solo numéricos: verificar que Excel no haya quitado ceros a la izquierda.`);
   if (duplicadas) adv.push(`${duplicadas} fila(s) duplicadas descartadas.`);
   if (rech.length) adv.push(`${rech.length} fila(s) rechazadas (p. ej.: ${rech.slice(0, 3).join('; ')}).`);
@@ -424,8 +496,9 @@ const S = {
   tab: 'cargar',
   fechaRef: hoyISO(),
   demo: false,
-  datos: { USR02: null, AGR_USERS: null, AGR_1252: null, REF: null }, // {regs, meta}
+  datos: { USR02: null, AGR_USERS: null, AGR_1252: null, USR05: null, REF: null, UST04: null, USR21: null, ADRP: null }, // {regs, meta}
   pendiente: null, // archivo leído esperando confirmación de mapeo
+  lote: [], // resultado de la carga múltiple
   conf: Object.assign({ reglas: [], decisiones: {}, excluirTecnicas: true, sugeridasAplicadas: false, umbralRoles: 25, diasSinAcceso: 90 }, leerLocal(CLAVE_CONF, {})),
   ui: { uFiltro: 'pendientes', uTexto: '', uPag: 0, uSel: new Set(), tokTexto: '', tokPag: 0, tokSolo: 'todos', orgCampo: '',
         aFiltro: '', aTexto: '', aPag: 0, aOrden: ['bname', 1], rTexto: '', rPag: 0, rOrden: ['enUniverso', -1] },
@@ -442,15 +515,28 @@ function calcular() {
   const asig = S.datos.AGR_USERS ? S.datos.AGR_USERS.regs : [];
   const org = S.datos.AGR_1252 ? S.datos.AGR_1252.regs : [];
   const refl = S.datos.REF ? S.datos.REF.regs : [];
+  const regs = (f) => (S.datos[f] ? S.datos[f].regs : []);
   const reglas = S.conf.reglas;
 
+  // Nombre de cada usuario: USR21 (usuario → persona) + ADRP (persona → nombre)
+  const nombrePorPers = {};
+  regs('ADRP').forEach((p) => (nombrePorPers[p.pers] = p.nombre));
+  const nombres = {};
+  regs('USR21').forEach((u) => { if (nombrePorPers[u.pers]) nombres[u.bname] = nombrePorPers[u.pers]; });
+  // Perfiles (UST04) y parámetros organizativos (USR05)
+  const perfiles = {};
+  regs('UST04').forEach((x) => (perfiles[x.bname] = perfiles[x.bname] || []).push(x.perfil));
+  const params = {};
+  regs('USR05').forEach((x) => { if (PARAMS_ORG[x.parid]) (params[x.bname] = params[x.bname] || []).push(x); });
+
   // Índices de reglas
-  const rTok = {}, rCont = [], rClase = {}, rOrg = {};
+  const rTok = {}, rCont = [], rClase = {}, rOrg = {}, rParam = {};
   for (const r of reglas) {
     if (r.tipo === 'token') rTok[r.valor] = r.pais;
     else if (r.tipo === 'contiene') rCont.push(r);
     else if (r.tipo === 'clase') rClase[r.valor] = r.pais;
     else if (r.tipo === 'org') rOrg[`${r.campo}=${r.valor}`] = r.pais;
+    else if (r.tipo === 'param') rParam[`${r.campo}=${r.valor}`] = r.pais;
   }
   const orgPorRol = {};
   for (const o of org) (orgPorRol[o.agr] = orgPorRol[o.agr] || []).push(o);
@@ -485,6 +571,9 @@ function calcular() {
       for (const c of Object.keys(p)) { ev[c]++; (motivosEv[c] = motivosEv[c] || []).push(r.agr); }
     }
     if (rClase[u.clase]) { ev[rClase[u.clase]] += 1; (motivosEv[rClase[u.clase]] = motivosEv[rClase[u.clase]] || []).push(`grupo ${u.clase}`); }
+    for (const x of params[u.bname] || []) { const c = rParam[`${x.parid}=${x.parva}`]; if (c) { ev[c] += 1; (motivosEv[c] = motivosEv[c] || []).push(`parámetro ${x.parid}=${x.parva}`); } }
+    const susPerfiles = perfiles[u.bname] || [];
+    const perfilesDirectos = susPerfiles.filter((p) => !esPerfilGenerado(p));
     const enRef = refPorUsuario[u.bname];
     const bloqueada = !!u.uflag;
     const vigCuenta = vigencia(u.gltgv, u.gltgb, ref);
@@ -509,6 +598,8 @@ function calcular() {
 
     return {
       ...u, roles, vigentes: [...new Set(vig.map((r) => r.agr))], ev, motivosEv, enRef, tecnica,
+      nombre: nombres[u.bname] || (enRef ? enRef.nombre : ''), perfilesDirectos, perfilesGenerados: susPerfiles.length - perfilesDirectos.length,
+      critico: perfilesDirectos.some((p) => PERFILES_CRITICOS.has(p)), params: params[u.bname] || [],
       bloqueada, motivos: motivosBloqueo(u.uflag), vigCuenta, utilizable: !bloqueada && vigCuenta === 'vigente',
       diasSinAcceso: u.trdat ? dias(u.trdat, ref) : null,
       sug, motivo, manual: !!(dec && dec.d), final, pais, nota: dec ? dec.nota || '' : '',
@@ -531,6 +622,13 @@ function calcular() {
     .sort((a, b) => b.usuarios - a.usuarios || a.token.localeCompare(b.token));
   const clases = {};
   usr.forEach((u) => { const k = u.clase || ''; clases[k] = (clases[k] || 0) + 1; });
+  const paramVals = {};
+  for (const x of regs('USR05')) {
+    if (!PARAMS_ORG[x.parid]) continue;
+    const k = `${x.parid}=${x.parva}`;
+    const y = paramVals[k] = paramVals[k] || { campo: x.parid, valor: x.parva, usuarios: 0, pais: rParam[k] || '' };
+    y.usuarios++;
+  }
   const orgVals = {};
   for (const o of org) {
     const k = `${o.varbl}=${o.low}`;
@@ -547,7 +645,7 @@ function calcular() {
     else x.fuera++;
   }
   const huerfanas = [...new Set(asig.filter((a) => !porNombre[a.uname]).map((a) => a.uname))];
-  S.calc = { cuentas, porNombre, universo, tokens, clases, orgVals: Object.values(orgVals), roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
+  S.calc = { cuentas, porNombre, universo, tokens, clases, orgVals: Object.values(orgVals), paramVals: Object.values(paramVals).sort((a, b) => b.usuarios - a.usuarios), roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
 }
 
 // Sugerencias iniciales evidentes (se pueden quitar).
@@ -602,8 +700,9 @@ function pie(lista, pg, clave) {
 }
 
 // ---------------------------------------------------------- vista: cargar
+const GRUPOS = [['base', 'Necesarios'], ['pistas', 'Pistas de país'], ['complementos', 'Complementos']];
 function vistaCargar() {
-  const zonas = Object.entries(FUENTES).map(([f, def]) => {
+  const zona = ([f, def]) => {
     const d = S.datos[f];
     return `<div class="zona ${d ? 'cargada' : ''}" data-zona="${f}">
       <div class="card-h"><b>${h(def.titulo)}</b>${d ? '<span class="tag ok"><i></i>Cargado</span>' : def.obligatoria ? '<span class="tag warn"><i></i>Necesario</span>' : '<span class="tag"><i></i>Opcional</span>'}</div>
@@ -614,7 +713,9 @@ function vistaCargar() {
         ${d ? `<button class="btn mini peligro" data-accion="quitar" data-f="${f}">Quitar</button>` : ''}
       </div>
     </div>`;
-  }).join('');
+  };
+  const zonas = GRUPOS.map(([g, t]) => `<h3>${t}</h3><div class="grid g2">${Object.entries(FUENTES).filter(([, d]) => d.grupo === g).map(zona).join('')}</div>`).join('');
+  const lote = S.lote.length ? `<div class="card" style="margin-top:12px"><h2>Resultado de la carga múltiple</h2><table class="t"><tbody>${S.lote.map((x, i) => `<tr><td>${h(x.nombre)}</td><td>${x.fuente ? h(FUENTES[x.fuente].titulo) : '<span class="muted">No identificado</span>'}</td><td>${x.ok ? `<span class="tag ok"><i></i>Cargado: ${n(x.filas)} filas</span>` : `<span class="tag warn"><i></i>${h(x.msg)}</span>`}</td><td>${!x.ok && x.archivo ? `<button class="btn mini" data-revisar-lote="${i}">Revisar columnas</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
   return `
   ${S.demo ? '<div class="banda-demo"><b>Datos de ejemplo ficticios.</b> <span class="t2">No provienen de SAP.</span></div>' : ''}
   <h1>Cargar archivos</h1>
@@ -625,7 +726,13 @@ function vistaCargar() {
       <span class="t2 peq">Las vigencias (cuentas y roles) se evalúan contra esta fecha, no contra hoy.</span>
     </div>
   </div>
-  <div class="grid g2">${zonas}</div>
+  <div class="card zona" data-zona="*">
+    <div class="card-h"><h2>Cargar varios archivos a la vez</h2></div>
+    <p class="t2 peq" style="margin:0 0 10px">Arrastrá acá todos los archivos o elegilos juntos. Cada tabla se reconoce por el nombre del archivo (p. ej. <span class="mono">USR05_PRD_….xlsx</span>) o por sus encabezados, y se carga con el mapeo sugerido. Lo que no se pueda identificar queda para revisar.</p>
+    <label class="btn prim">Elegir archivos<input type="file" class="oculto" id="cargaMultiple" multiple accept=".xlsx,.xls,.xlsm,.csv,.txt,.tsv"></label>
+  </div>
+  ${lote}
+  ${zonas}
   <div id="mapeo"></div>
   <div class="card" style="margin-top:16px">
     <div class="card-h"><h2>¿Querés probar antes de exportar de SAP?</h2></div>
@@ -651,7 +758,8 @@ function vistaMapeo() {
       <button class="btn prim" data-accion="confirmar" ${r.regs.length ? '' : 'disabled'}>Confirmar (${n(r.regs.length)} filas)</button>`;
   }
   return `<div class="card" style="margin-top:16px">
-    <div class="card-h"><h2>Revisar columnas: ${h(def.titulo)}</h2><button class="btn" data-accion="cancelar-mapeo">Cancelar</button></div>
+    <div class="card-h"><h2>Revisar columnas</h2><button class="btn" data-accion="cancelar-mapeo">Cancelar</button></div>
+    <label class="fila" style="margin-bottom:8px">Tabla <select class="campo" id="mapeo-fuente">${Object.entries(FUENTES).map(([k, d]) => `<option value="${k}" ${k === P.fuente ? 'selected' : ''}>${h(d.titulo)}</option>`).join('')}</select></label>
     <div class="t2 peq">${h(P.archivo.nombre)} · ${n(tabla.filas.length)} filas de datos · <span class="mono">SHA-256 ${h(P.archivo.sha.slice(0, 16))}…</span></div>
     <div class="fila" style="margin:10px 0">
       ${P.archivo.hojas.length > 1 ? `<label>Hoja <select class="campo" id="mapeo-hoja">${P.archivo.hojas.map((x, i) => `<option value="${i}" ${i === P.hoja ? 'selected' : ''}>${h(x.nombre)}</option>`).join('')}</select></label>` : ''}
@@ -698,7 +806,7 @@ function vistaUniverso() {
   else if (f === 'excluidos') lista = lista.filter((c) => c.final === 'excluir');
   else if (f === 'manuales') lista = lista.filter((c) => c.manual);
   else if (f === 'sinpais') lista = lista.filter((c) => c.final === 'incluir' && !c.pais.length);
-  if (U.uTexto) { const t = U.uTexto.toUpperCase(); lista = lista.filter((c) => c.bname.includes(t) || c.clase.includes(t) || (c.enRef && c.enRef.nombre.toUpperCase().includes(t)) || c.vigentes.some((r) => r.includes(t))); }
+  if (U.uTexto) { const t = U.uTexto.toUpperCase(); lista = lista.filter((c) => c.bname.includes(t) || c.clase.includes(t) || c.nombre.toUpperCase().includes(t) || c.vigentes.some((r) => r.includes(t))); }
   const pgU = paginar(lista, U.uPag, 100);
 
   return `
@@ -745,7 +853,8 @@ function vistaUniverso() {
       </tbody></table></div>
     </div>
     <div class="card">
-      <div class="card-h"><h2>C. Niveles organizativos (AGR_1252)</h2></div>
+      <div class="card-h"><h2>C. Niveles organizativos y parámetros</h2></div>
+      <h3 style="margin-top:0">C. Niveles organizativos de roles (AGR_1252)</h3>
       ${S.datos.AGR_1252 ? `
         <p class="t2 peq" style="margin-top:0">Asigná país a las sociedades (BUKRS), centros, organizaciones de ventas, etc. Es la pista más confiable.</p>
         <select class="campo" id="orgCampo" style="margin-bottom:8px"><option value="">Todos los campos</option>${camposOrg.map((c) => `<option ${U.orgCampo === c ? 'selected' : ''}>${h(c)}</option>`).join('')}</select>
@@ -753,7 +862,14 @@ function vistaUniverso() {
         ${orgs.sort((a, b) => b.roles.size - a.roles.size).slice(0, 300).map((o) => `<tr><td class="mono">${h(o.campo)}</td><td class="mono">${h(o.valor)}</td><td class="num">${n(o.roles.size)}</td><td>${selPais(`data-regla="org" data-campo="${h(o.campo)}" data-valor="${h(o.valor)}"`, reglaOrg(o))}</td></tr>`).join('')}
         </tbody></table></div>`
       : `<p class="t2" style="margin-top:0">Opcional. Si cargás <b>AGR_1252</b> en el paso 1, vas a poder indicar qué sociedades, centros u organizaciones corresponden a cada país, y la app deduce el país de cada rol a partir de esos valores.</p>`}
-      <h3>D. Lista de referencia</h3>
+      <h3>D. Parámetros de usuario (USR05)</h3>
+      ${S.datos.USR05 ? (C.paramVals.length ? `
+        <p class="t2 peq" style="margin-top:0">Valores organizativos predeterminados en el perfil de cada usuario (SU01 → Parámetros).</p>
+        <div class="tabla-wrap" style="max-height:240px"><table class="t"><thead><tr><th>Parámetro</th><th>Valor</th><th class="num">Usuarios</th><th>País</th></tr></thead><tbody>
+        ${C.paramVals.map((x) => `<tr><td><span class="mono">${h(x.campo)}</span> <span class="peq muted">${h(PARAMS_ORG[x.campo])}</span></td><td class="mono">${h(x.valor)}</td><td class="num">${n(x.usuarios)}</td><td>${selPais(`data-regla="param" data-campo="${h(x.campo)}" data-valor="${h(x.valor)}"`, x.pais)}</td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="t2 peq" style="margin:0">USR05 no tiene parámetros organizativos (BUK, VKO, WRK…).</p>')
+      : '<p class="t2 peq" style="margin:0">Opcional: cargá USR05 en el paso 1.</p>'}
+      <h3>E. Lista de referencia</h3>
       <p class="t2 peq" style="margin:0">${S.datos.REF ? `${n(S.datos.REF.regs.length)} usuarios en la lista; cuentan como "incluir".` : 'Opcional: planilla de RR. HH. o lista propia de usuarios UY/CL (paso 1).'}</p>
       <h3>Opciones</h3>
       <label class="fila"><input type="checkbox" id="excluirTecnicas" ${S.conf.excluirTecnicas ? 'checked' : ''}> Sugerir excluir cuentas técnicas (tipo B, C, L, S)</label>
@@ -774,7 +890,7 @@ function vistaUniverso() {
       <select class="campo" id="uFiltro">
         ${[['pendientes', 'Por revisar'], ['incluidos', 'En el universo'], ['sinpais', 'En el universo sin país'], ['excluidos', 'Excluidas'], ['manuales', 'Decididas a mano'], ['todas', 'Todas']].map(([k, v]) => `<option value="${k}" ${f === k ? 'selected' : ''}>${v}</option>`).join('')}
       </select>
-      <input class="campo" id="uTexto" placeholder="Buscar usuario, grupo, rol…" value="${h(U.uTexto)}">
+      <input class="campo" id="uTexto" placeholder="Buscar usuario, nombre, grupo, rol…" value="${h(U.uTexto)}">
       <span class="t2 peq">${n(U.uSel.size)} seleccionada(s)</span>
       <button class="btn mini" data-accion="sel-pagina">Seleccionar página</button>
       <button class="btn mini" data-accion="sel-filtro">Seleccionar todo el filtro (${n(lista.length)})</button>
@@ -792,7 +908,7 @@ function vistaUniverso() {
     <div class="tabla-wrap"><table class="t"><thead><tr><th></th><th>Usuario</th><th>Tipo</th><th>Estado</th><th>Grupo</th><th class="num">Roles vig.</th><th>Pistas</th><th>Sugerencia</th><th>Decisión</th><th>País</th></tr></thead><tbody>
     ${pgU.items.map((c) => `<tr>
       <td><input type="checkbox" data-sel="${h(c.bname)}" ${U.uSel.has(c.bname) ? 'checked' : ''} aria-label="Seleccionar ${h(c.bname)}"></td>
-      <td><button class="link mono" data-ficha="${h(c.bname)}">${h(c.bname)}</button>${c.enRef && c.enRef.nombre ? `<div class="peq t2">${h(c.enRef.nombre)}</div>` : ''}</td>
+      <td><button class="link mono" data-ficha="${h(c.bname)}">${h(c.bname)}</button>${c.nombre ? `<div class="peq t2">${h(c.nombre)}</div>` : ''}</td>
       <td>${h(TIPOS[c.ustyp] || c.ustyp || '—')}</td>
       <td>${tagEstado(c)}</td>
       <td class="mono">${h(c.clase) || '—'}</td>
@@ -810,6 +926,8 @@ function vistaUniverso() {
 
 // -------------------------------------------------------- vista: análisis
 const SENALES = [
+  ['perfilCritico', 'alta', 'SAP_ALL o SAP_NEW asignado directamente', 'Perfil con acceso total o casi total, fuera de los roles. Revisar con prioridad.', (c) => c.critico],
+  ['perfilDirecto', 'media', 'Otros perfiles asignados directamente', 'Perfiles que no provienen de un rol (UST04). Sus autorizaciones no se ven en los roles.', (c) => c.perfilesDirectos.some((p) => !PERFILES_CRITICOS.has(p))],
   ['bloqueada', 'media', 'Cuentas bloqueadas', 'UFLAG distinto de 0.', (c) => c.bloqueada],
   ['sinAcceso', 'media', 'Utilizables sin acceso reciente', (P) => `Último acceso hace más de ${P.diasSinAcceso} días respecto de la extracción. No prueba que el acceso sobre.`, (c, P) => c.utilizable && c.diasSinAcceso !== null && c.diasSinAcceso > P.diasSinAcceso],
   ['nuncaAccedio', 'media', 'Utilizables sin registro de acceso', 'TRDAT vacío.', (c) => c.utilizable && !c.trdat],
@@ -836,7 +954,7 @@ function vistaAnalisis() {
   else if (U.aFiltro === 'UY') lista = lista.filter((c) => c.pais.includes('UY'));
   else if (U.aFiltro === 'CL') lista = lista.filter((c) => c.pais.includes('CL'));
   else if (U.aFiltro === 'utilizables') lista = lista.filter((c) => c.utilizable);
-  if (U.aTexto) { const t = U.aTexto.toUpperCase(); lista = lista.filter((c) => c.bname.includes(t) || c.clase.includes(t) || c.vigentes.some((r) => r.includes(t)) || (c.enRef && c.enRef.nombre.toUpperCase().includes(t))); }
+  if (U.aTexto) { const t = U.aTexto.toUpperCase(); lista = lista.filter((c) => c.bname.includes(t) || c.clase.includes(t) || c.vigentes.some((r) => r.includes(t)) || c.nombre.toUpperCase().includes(t)); }
   const [oc, od] = U.aOrden;
   const clave = { bname: (c) => c.bname, pais: (c) => c.pais.join('+'), estado: (c) => (c.bloqueada ? 2 : c.utilizable ? 0 : 1), acceso: (c) => c.trdat || '', roles: (c) => c.vigentes.length, senales: (c) => SENALES.filter((s) => s[4](c, P)).length }[oc];
   lista = [...lista].sort((a, b) => { const x = clave(a), y = clave(b); return (x > y ? 1 : x < y ? -1 : 0) * od; });
@@ -859,6 +977,7 @@ function vistaAnalisis() {
     ${stat('Uruguay', uy + ambos, ambos ? `${n(ambos)} también Chile` : '', 'a-UY')}
     ${stat('Chile', cl + ambos, ambos ? `${n(ambos)} también Uruguay` : '', 'a-CL')}
     ${stat('Utilizables', u.filter((c) => c.utilizable).length, 'sin bloqueo y vigentes', 'a-utilizables')}
+    ${S.datos.UST04 ? stat('Con SAP_ALL / SAP_NEW', u.filter((c) => c.critico).length, 'asignado directamente', 'a-s:perfilCritico') : ''}
     ${stat('Roles distintos', C.roles.length, 'con asignación vigente')}
     ${stat('Asignaciones vigentes', asigVig)}
   </div>
@@ -872,16 +991,16 @@ function vistaAnalisis() {
   <div class="card">
     <h2>Señales para revisar</h2>
     <p class="t2 peq" style="margin-top:0">Indicios sobre asignaciones registradas, no hallazgos confirmados. Hacé clic en el número para filtrar la lista.</p>
-    <table class="t"><tbody>${SENALES.map((s) => `<tr><td style="width:120px"><span class="sev ${s[1]}"><b>${s[1] === 'alta' ? '▲' : s[1] === 'media' ? '●' : 'i'}</b>${s[1] === 'info' ? 'Informativa' : 'Revisar'}</span></td><td><b>${h(s[2])}</b><div class="peq t2">${h(txtSenal(s, P))}</div></td><td class="num"><button class="link" style="font-size:18px;font-weight:600" data-accion="a-s:${s[0]}">${n(conteo[s[0]])}</button></td></tr>`).join('')}</tbody></table>
+    <table class="t"><tbody>${SENALES.map((s) => `<tr><td style="width:120px"><span class="sev ${s[1]}"><b>${s[1] === 'alta' ? '▲' : s[1] === 'media' ? '●' : 'i'}</b>${s[1] === 'info' ? 'Informativa' : s[1] === 'alta' ? 'Prioridad alta' : 'Revisar'}</span></td><td><b>${h(s[2])}</b><div class="peq t2">${h(txtSenal(s, P))}</div></td><td class="num"><button class="link" style="font-size:18px;font-weight:600" data-accion="a-s:${s[0]}">${n(conteo[s[0]])}</button></td></tr>`).join('')}</tbody></table>
   </div>
   <div class="card">
     <div class="card-h"><h2>Cuentas del universo</h2><button class="btn" data-accion="exportar-cuentas">Exportar CSV</button></div>
     <div class="fila" style="margin-bottom:8px">
       <select class="campo" id="aFiltro"><option value="">Todas</option><option value="UY" ${U.aFiltro === 'UY' ? 'selected' : ''}>Uruguay</option><option value="CL" ${U.aFiltro === 'CL' ? 'selected' : ''}>Chile</option><option value="utilizables" ${U.aFiltro === 'utilizables' ? 'selected' : ''}>Utilizables</option>${SENALES.map((s) => `<option value="s:${s[0]}" ${U.aFiltro === 's:' + s[0] ? 'selected' : ''}>${h(s[2])}</option>`).join('')}</select>
-      <input class="campo" id="aTexto" placeholder="Buscar usuario, rol, grupo…" value="${h(U.aTexto)}">
+      <input class="campo" id="aTexto" placeholder="Buscar usuario, nombre, rol, grupo…" value="${h(U.aTexto)}">
     </div>
     <div class="tabla-wrap"><table class="t"><thead><tr>${th('bname', 'Usuario', 0, 'a')}${th('pais', 'País', 0, 'a')}<th>Tipo</th>${th('estado', 'Estado', 0, 'a')}${th('acceso', 'Último acceso', 0, 'a')}${th('roles', 'Roles vigentes', 1, 'a')}${th('senales', 'Señales', 0, 'a')}</tr></thead><tbody>
-    ${pg.items.map((c) => { const ss = SENALES.filter((s) => s[4](c, P)); return `<tr><td><button class="link mono" data-ficha="${h(c.bname)}">${h(c.bname)}</button>${c.enRef && c.enRef.nombre ? `<div class="peq t2">${h(c.enRef.nombre)}</div>` : ''}</td><td>${c.pais.map(tagPais).join(' ') || '<span class="muted">—</span>'}</td><td>${h(TIPOS[c.ustyp] || c.ustyp || '—')}</td><td>${tagEstado(c)}</td><td>${c.trdat ? `${fmtFecha(c.trdat)}<div class="peq muted">hace ${c.diasSinAcceso} d</div>` : '<span class="muted">Sin registro</span>'}</td><td class="num">${n(c.vigentes.length)}</td><td>${ss.map((s) => `<span class="sev ${s[1]}" title="${h(s[2])}"><b>${s[1] === 'info' ? 'i' : '●'}</b></span>`).join(' ') || '<span class="muted">—</span>'}</td></tr>`; }).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Sin resultados.</td></tr>'}
+    ${pg.items.map((c) => { const ss = SENALES.filter((s) => s[4](c, P)); return `<tr><td><button class="link mono" data-ficha="${h(c.bname)}">${h(c.bname)}</button>${c.nombre ? `<div class="peq t2">${h(c.nombre)}</div>` : ''}</td><td>${c.pais.map(tagPais).join(' ') || '<span class="muted">—</span>'}</td><td>${h(TIPOS[c.ustyp] || c.ustyp || '—')}</td><td>${tagEstado(c)}</td><td>${c.trdat ? `${fmtFecha(c.trdat)}<div class="peq muted">hace ${c.diasSinAcceso} d</div>` : '<span class="muted">Sin registro</span>'}</td><td class="num">${n(c.vigentes.length)}</td><td>${ss.map((s) => `<span class="sev ${s[1]}" title="${h(s[2])}"><b>${s[1] === 'info' ? 'i' : s[1] === 'alta' ? '▲' : '●'}</b></span>`).join(' ') || '<span class="muted">—</span>'}</td></tr>`; }).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Sin resultados.</td></tr>'}
     </tbody></table></div>
     ${pie(lista, pg, 'a')}
   </div>
@@ -932,7 +1051,8 @@ function fichaCuenta(b) {
   if (!c) return;
   const roles = c.roles.map((r) => `<tr><td class="mono">${h(r.agr)}</td><td>${r.estado === 'vigente' ? (r.porVencer ? '<span class="tag warn"><i></i>Por vencer</span>' : '<span class="tag ok"><i></i>Vigente</span>') : `<span class="tag"><i></i>${r.estado === 'vencida' ? 'Vencida' : 'Futura'}</span>`}</td><td>${fmtFecha(r.desde)}</td><td>${fmtFecha(r.hasta)}</td><td>${h(r.col) || '—'}</td><td>${Object.keys(S.calc.paisesDeRol(r.agr)).map(tagPais).join(' ') || '<span class="muted">—</span>'}</td></tr>`).join('');
   abrirCajon(`<div class="card-h"><h1 class="mono" style="font-size:20px">${h(c.bname)}</h1><button class="btn" data-accion="cerrar-cajon">Cerrar</button></div>
-    ${c.enRef ? `<p class="sub">${h(c.enRef.nombre)}${c.enRef.area ? ' · ' + h(c.enRef.area) : ''}${c.enRef.estado ? ' · ' + h(c.enRef.estado) : ''}</p>` : ''}
+    ${c.nombre || c.enRef ? `<p class="sub">${h(c.nombre)}${c.enRef && c.enRef.area ? ' · ' + h(c.enRef.area) : ''}${c.enRef && c.enRef.estado ? ' · ' + h(c.enRef.estado) : ''}</p>` : ''}
+    ${c.critico ? `<div class="aviso crit"><b>Perfil crítico asignado directamente</b>${h(c.perfilesDirectos.filter((p) => PERFILES_CRITICOS.has(p)).join(', '))}: acceso total o casi total, sin pasar por roles.</div>` : ''}
     <div class="card"><h2>Universo</h2><dl class="datos">
       <div><dt>Decisión</dt><dd>${tagSug[c.final]} ${c.manual ? '<span class="peq t2">(manual)</span>' : '<span class="peq t2">(sugerencia)</span>'}</dd></div>
       <div><dt>Motivo de la sugerencia</dt><dd>${h(c.motivo)}</dd></div>
@@ -946,6 +1066,8 @@ function fichaCuenta(b) {
       <div><dt>Grupo (CLASS)</dt><dd class="mono">${h(c.clase) || '—'}</dd></div>
       <div><dt>Válido desde / hasta</dt><dd>${fmtFecha(c.gltgv)} — ${c.gltgb ? fmtFecha(c.gltgb) : 'Sin límite'}</dd></div>
       <div><dt>Último acceso (TRDAT/LTIME)</dt><dd>${c.trdat ? `${fmtFecha(c.trdat)} ${c.ltime || ''} (hace ${c.diasSinAcceso} d)` : 'Sin registro'}</dd></div>
+      ${S.datos.UST04 ? `<div><dt>Perfiles (UST04)</dt><dd>${n(c.perfilesGenerados)} generados por roles${c.perfilesDirectos.length ? `<div>Directos: <span class="mono">${h(c.perfilesDirectos.join(', '))}</span></div>` : ''}</dd></div>` : ''}
+      ${c.params.length ? `<div><dt>Parámetros organizativos (USR05)</dt><dd class="mono">${h(c.params.map((x) => `${x.parid}=${x.parva}`).join(', '))}</dd></div>` : ''}
     </dl></div>
     <div class="card"><h2>Roles (${n(c.vigentes.length)} vigentes de ${n(c.roles.length)} filas)</h2>
       <div class="tabla-wrap"><table class="t"><thead><tr><th>Rol</th><th>Estado</th><th>Desde</th><th>Hasta</th><th>COL_FLAG</th><th>País (pistas)</th></tr></thead><tbody>${roles || '<tr><td colspan="6" class="muted">Sin roles.</td></tr>'}</tbody></table></div>
@@ -989,18 +1111,57 @@ async function elegirArchivo(fuente, file) {
   render();
   document.getElementById('mapeo').scrollIntoView({ behavior: 'smooth' });
 }
+const ORDEN_NOMBRES = ['AGR_USERS', 'AGR_1252', 'USR02', 'USR05', 'USR21', 'UST04', 'ADRP'];
+function detectarFuente(nombre, archivo) {
+  const up = nombre.toUpperCase();
+  const porNombre = ORDEN_NOMBRES.find((f) => up.includes(f) || up.includes(f.replace('_', '')));
+  if (porNombre) return porNombre;
+  let mejor = null, p = 1; // al menos 2 encabezados reconocidos
+  for (const f of Object.keys(FUENTES)) {
+    for (const hj of archivo.hojas) { const q = puntaje(f, hj.filas[filaEncabezado(f, hj.filas)] || []); if (q > p) { p = q; mejor = f; } }
+  }
+  return mejor;
+}
+async function cargarVarios(files) {
+  S.lote = [];
+  S.pendiente = null;
+  for (const file of files) {
+    const item = { nombre: file.name, fuente: null, ok: false, msg: '' };
+    S.lote.push(item);
+    try {
+      const a = await leerArchivo(file);
+      item.archivo = a;
+      const f = detectarFuente(file.name, a);
+      if (!f) { item.msg = /ADRC/i.test(file.name) ? 'ADRC no se usa: la dirección de empresa es la misma para todos los usuarios, no indica país' : 'No se reconoció la tabla'; continue; }
+      item.fuente = f;
+      const punt = a.hojas.map((x) => puntaje(f, x.filas[filaEncabezado(f, x.filas)] || []));
+      const hoja = punt.indexOf(Math.max(...punt));
+      const fe = filaEncabezado(f, a.hojas[hoja].filas);
+      const mapeo = mapeoSugerido(f, armarTabla(a.hojas[hoja], fe).enc);
+      Object.assign(item, { hoja, fe, mapeo });
+      const r = procesar(f, armarTabla(a.hojas[hoja], fe), mapeo);
+      S.pendiente = { fuente: f, archivo: a, hoja, fe, mapeo, resultado: r };
+      confirmarPendiente(false);
+      Object.assign(item, { ok: true, filas: r.regs.length });
+    } catch (e) {
+      item.msg = e.message || String(e);
+    }
+  }
+  S.pendiente = null;
+  recalcular();
+}
 function validarPendiente() {
   const P = S.pendiente;
   P.error = null; P.resultado = null;
   try { P.resultado = procesar(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe), P.mapeo); }
   catch (e) { P.error = e.message || String(e); }
 }
-function confirmarPendiente() {
+function confirmarPendiente(redibujar = true) {
   const P = S.pendiente, r = P.resultado;
   S.datos[P.fuente] = { regs: r.regs, meta: { archivo: P.archivo.nombre, sha: P.archivo.sha, leidas: r.leidas, rechazadas: r.rechazadas, duplicadas: r.duplicadas, adv: [...P.archivo.adv, ...r.adv], cargado: new Date().toLocaleString('es-UY') } };
   S.pendiente = null;
   if (P.fuente === 'AGR_USERS') aplicarSugeridas();
-  recalcular();
+  if (redibujar) recalcular();
 }
 function decidir(bnames, d, pais) {
   const ahora = new Date().toISOString();
@@ -1015,11 +1176,18 @@ function decidir(bnames, d, pais) {
 document.getElementById('tabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-tab]'); if (b) { S.tab = b.dataset.tab; render(); window.scrollTo(0, 0); } });
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-accion],[data-tab-ir],[data-ficha],[data-rol],[data-pag],[data-masivo],[data-decidir],[data-orden]');
+  const t = e.target.closest('[data-accion],[data-tab-ir],[data-ficha],[data-rol],[data-pag],[data-masivo],[data-decidir],[data-orden],[data-revisar-lote]');
   if (!t) return;
   const U = S.ui;
   if (t.dataset.tabIr) { S.tab = t.dataset.tabIr; render(); window.scrollTo(0, 0); return; }
   if (t.dataset.ficha) return fichaCuenta(t.dataset.ficha);
+  if (t.dataset.revisarLote) {
+    const x = S.lote[+t.dataset.revisarLote];
+    const f = x.fuente || 'USR02';
+    const hoja = x.hoja || 0, fe = x.fe != null ? x.fe : filaEncabezado(f, x.archivo.hojas[hoja].filas);
+    S.pendiente = { fuente: f, archivo: x.archivo, hoja, fe, mapeo: x.mapeo || mapeoSugerido(f, armarTabla(x.archivo.hojas[hoja], fe).enc) };
+    validarPendiente(); render(); document.getElementById('mapeo').scrollIntoView({ behavior: 'smooth' }); return;
+  }
   if (t.dataset.rol) return fichaRol(t.dataset.rol);
   if (t.dataset.pag) { const k = t.dataset.pag + 'Pag'; U[k] = Math.max(0, U[k] + Number(t.dataset.dir)); return render(); }
   if (t.dataset.orden) { const [g, id] = t.dataset.orden.split(':'); const k = g === 'r' ? 'rOrden' : 'aOrden'; U[k] = [id, U[k][0] === id ? -U[k][1] : (['roles', 'enUniverso', 'uy', 'cl', 'fuera', 'senales'].includes(id) ? -1 : 1)]; return render(); }
@@ -1036,7 +1204,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'validar') { validarPendiente(); render(); }
   else if (a === 'confirmar') confirmarPendiente();
   else if (a === 'demo') cargarDemo();
-  else if (a === 'demo-archivos') { const d = generarDemo(); descargar('ejemplo_USR02.csv', d.USR02); descargar('ejemplo_AGR_USERS.csv', d.AGR_USERS); descargar('ejemplo_AGR_1252.csv', d.AGR_1252); }
+  else if (a === 'demo-archivos') { const d = generarDemo(); descargar('ejemplo_USR02.csv', d.USR02); descargar('ejemplo_AGR_USERS.csv', d.AGR_USERS); for (const f of ['AGR_1252', 'USR21', 'ADRP', 'USR05', 'UST04']) descargar(`ejemplo_${f}.csv`, d[f]); }
   else if (a === 'agregar-contiene') {
     const v = document.getElementById('contTexto').value.trim().toUpperCase(), p = document.getElementById('contPais').value;
     if (!v || !p) return alert('Indicá el texto y el país.');
@@ -1045,19 +1213,19 @@ document.addEventListener('click', (e) => {
   else if (a === 'quitar-contiene') setRegla('contiene', t.dataset.valor, '');
   else if (a === 'sel-pagina') { document.querySelectorAll('[data-sel]').forEach((x) => U.uSel.add(x.dataset.sel)); render(); }
   else if (a === 'sel-filtro') { const v = U.uFiltro; S.calc.cuentas.filter((c) => v === 'todas' || (v === 'pendientes' && c.final === 'revisar') || (v === 'incluidos' && c.final === 'incluir') || (v === 'excluidos' && c.final === 'excluir') || (v === 'manuales' && c.manual) || (v === 'sinpais' && c.final === 'incluir' && !c.pais.length))
-      .filter((c) => !U.uTexto || c.bname.includes(U.uTexto.toUpperCase()) || c.clase.includes(U.uTexto.toUpperCase()) || c.vigentes.some((r) => r.includes(U.uTexto.toUpperCase()))).forEach((c) => U.uSel.add(c.bname)); render(); }
+      .filter((c) => !U.uTexto || c.bname.includes(U.uTexto.toUpperCase()) || c.clase.includes(U.uTexto.toUpperCase()) || c.nombre.toUpperCase().includes(U.uTexto.toUpperCase()) || c.vigentes.some((r) => r.includes(U.uTexto.toUpperCase()))).forEach((c) => U.uSel.add(c.bname)); render(); }
   else if (a === 'sel-ninguna') { U.uSel.clear(); render(); }
   else if (a && a.startsWith('u-')) { U.uFiltro = a.slice(2); U.uPag = 0; render(); }
   else if (a && a.startsWith('a-')) { const v = a.slice(2); U.aFiltro = v === 'todas' ? '' : v; U.aPag = 0; render(); document.getElementById('aFiltro').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   else if (a === 'exportar-universo') {
-    descargarCsv(`universo_${S.fechaRef}.csv`, ['Usuario', 'Decision', 'Origen', 'Pais', 'Tipo', 'Grupo', 'Motivo sugerencia', 'Pistas', 'Fecha extraccion'],
-      S.calc.cuentas.map((c) => [c.bname, c.final, c.manual ? 'manual' : 'sugerencia', c.pais.join('+'), c.ustyp, c.clase, c.motivo, Object.entries(c.ev).filter(([, v]) => v).map(([k, v]) => `${k}:${v}`).join(' '), S.fechaRef]));
+    descargarCsv(`universo_${S.fechaRef}.csv`, ['Usuario', 'Nombre', 'Decision', 'Origen', 'Pais', 'Tipo', 'Grupo', 'Motivo sugerencia', 'Pistas', 'Fecha extraccion'],
+      S.calc.cuentas.map((c) => [c.bname, c.nombre, c.final, c.manual ? 'manual' : 'sugerencia', c.pais.join('+'), c.ustyp, c.clase, c.motivo, Object.entries(c.ev).filter(([, v]) => v).map(([k, v]) => `${k}:${v}`).join(' '), S.fechaRef]));
   }
   else if (a === 'exportar-conf') descargar(`configuracion_universo_${hoyISO()}.json`, JSON.stringify(S.conf, null, 2), 'application/json');
   else if (a === 'exportar-cuentas') {
     const P = S.conf;
-    descargarCsv(`cuentas_universo_${S.fechaRef}.csv`, ['Usuario', 'Pais', 'Nombre', 'Tipo', 'Bloqueada', 'Motivo bloqueo', 'Valido desde', 'Valido hasta', 'Ultimo acceso', 'Grupo', 'Roles vigentes', 'Senales', 'Fecha extraccion'],
-      S.calc.universo.map((c) => [c.bname, c.pais.join('+'), c.enRef ? c.enRef.nombre : '', TIPOS[c.ustyp] || c.ustyp, c.bloqueada ? 'Si' : 'No', c.motivos.join(' · '), c.gltgv, c.gltgb, c.trdat, c.clase, c.vigentes.length, SENALES.filter((s) => s[4](c, P)).map((s) => s[2]).join(' · '), S.fechaRef]));
+    descargarCsv(`cuentas_universo_${S.fechaRef}.csv`, ['Usuario', 'Pais', 'Nombre', 'Perfiles directos', 'Tipo', 'Bloqueada', 'Motivo bloqueo', 'Valido desde', 'Valido hasta', 'Ultimo acceso', 'Grupo', 'Roles vigentes', 'Senales', 'Fecha extraccion'],
+      S.calc.universo.map((c) => [c.bname, c.pais.join('+'), c.nombre, c.perfilesDirectos.join(', '), TIPOS[c.ustyp] || c.ustyp, c.bloqueada ? 'Si' : 'No', c.motivos.join(' · '), c.gltgv, c.gltgb, c.trdat, c.clase, c.vigentes.length, SENALES.filter((s) => s[4](c, P)).map((s) => s[2]).join(' · '), S.fechaRef]));
   }
   else if (a === 'exportar-roles') descargarCsv(`roles_universo_${S.fechaRef}.csv`, ['Rol', 'Cuentas del universo', 'UY', 'CL', 'Fuera del universo', 'Pais segun pistas'],
       S.calc.roles.map((r) => [r.agr, r.enUniverso, r.uy, r.cl, r.fuera, Object.keys(S.calc.paisesDeRol(r.agr)).join('+')]));
@@ -1067,7 +1235,9 @@ document.addEventListener('click', (e) => {
 document.addEventListener('change', async (e) => {
   const t = e.target, U = S.ui;
   if (t.dataset.archivo) { await elegirArchivo(t.dataset.archivo, t.files[0]); t.value = ''; return; }
+  if (t.id === 'cargaMultiple') { await cargarVarios([...t.files]); t.value = ''; return; }
   if (t.id === 'fechaRef') { S.fechaRef = t.value || hoyISO(); return recalcular(); }
+  if (t.id === 'mapeo-fuente') { const P = S.pendiente; P.fuente = t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
   if (t.id === 'mapeo-hoja') { const P = S.pendiente; P.hoja = +t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
   if (t.id === 'mapeo-fe') { const P = S.pendiente; P.fe = Math.max(0, +t.value - 1); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
   if (t.dataset.mapeo !== undefined) { const P = S.pendiente; if (t.value) P.mapeo[t.dataset.mapeo] = t.value; else delete P.mapeo[t.dataset.mapeo]; P.resultado = null; return render(); }
@@ -1118,7 +1288,13 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.g
 // Arrastrar y soltar sobre las zonas de carga
 document.addEventListener('dragover', (e) => { const z = e.target.closest('[data-zona]'); if (z) { e.preventDefault(); z.classList.add('arrastrando'); } });
 document.addEventListener('dragleave', (e) => { const z = e.target.closest('[data-zona]'); if (z) z.classList.remove('arrastrando'); });
-document.addEventListener('drop', (e) => { const z = e.target.closest('[data-zona]'); if (z) { e.preventDefault(); elegirArchivo(z.dataset.zona, e.dataTransfer.files[0]); } });
+document.addEventListener('drop', (e) => {
+  const z = e.target.closest('[data-zona]');
+  if (!z) return;
+  e.preventDefault();
+  if (z.dataset.zona === '*') cargarVarios([...e.dataTransfer.files]);
+  else elegirArchivo(z.dataset.zona, e.dataTransfer.files[0]);
+});
 
 // ------------------------------------------------------------ datos demo
 // 100 % ficticios: usuarios de Uruguay, Chile y Argentina con convenciones de
@@ -1136,14 +1312,24 @@ function generarDemo() {
   const off = (k) => { const d = new Date(ref + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return d; };
   const usr = [['BNAME', 'USTYP', 'UFLAG', 'GLTGV', 'GLTGB', 'TRDAT', 'LTIME', 'CLASS']];
   const agr = [['UNAME', 'AGR_NAME', 'FROM_DAT', 'TO_DAT', 'COL_FLAG', 'ORG_FLAG']];
+  const u21 = [['BNAME', 'PERSNUMBER']], adrp = [['PERSNUMBER', 'NAME_TEXT']], u05 = [['BNAME', 'PARID', 'PARVA']], u04 = [['BNAME', 'PROFILE']];
+  let pers = 1000;
   const roles = new Set();
   const usados = new Set();
   const total = { UY: 70, CL: 45, AR: 260 };
   for (const [pais, cant] of Object.entries(total)) {
     for (let i = 0; i < cant; i++) {
-      let b = el(NOM)[0] + el(APE);
+      const nom = el(NOM), ape = el(APE);
+      let b = nom[0] + ape;
       while (usados.has(b)) b = b.slice(0, 9) + String(Math.floor(r() * 99)).padStart(2, '0');
       usados.add(b);
+      pers++;
+      u21.push([b, String(pers)]);
+      adrp.push([String(pers), `${nom[0]}${nom.slice(1).toLowerCase()} ${ape[0]}${ape.slice(1).toLowerCase()}`]);
+      if (r() < 0.1) u05.push([b, 'BUK', SOC[pais]]);
+      u05.push([b, 'SD_VARIANT_MAINTAIN', 'X']);
+      u04.push([b, `T-SE${String(Math.floor(r() * 99999999)).padStart(8, '0')}`]);
+      if (r() < 0.04) u04.push([b, 'SAP_ALL']);
       const clase = r() < 0.6 ? `SCIENZA_${pais}` : 'SCIENZA';
       usr.push([b, 'A', r() < 0.05 ? '64' : '0', f8(off(-Math.floor(200 + r() * 2000))), r() < 0.05 ? f8(off(-30)) : '99991231', r() < 0.05 ? '00000000' : f8(off(-Math.floor(r() < 0.15 ? 100 + r() * 300 : r() * 30))), '093000', clase]);
       const mods = Object.keys(MOD);
@@ -1167,11 +1353,11 @@ function generarDemo() {
     else if (rol.includes('GLOBAL')) Object.values(SOC).forEach((v) => org.push([rol, '$BUKRS', v, '']));
   }
   const csv = (x) => x.map((f) => f.join(';')).join('\n');
-  return { USR02: csv(usr), AGR_USERS: csv(agr), AGR_1252: csv(org), ref };
+  return { USR02: csv(usr), AGR_USERS: csv(agr), AGR_1252: csv(org), USR21: csv(u21), ADRP: csv(adrp), USR05: csv(u05), UST04: csv(u04), ref };
 }
 async function cargarDemo() {
   const d = generarDemo();
-  for (const f of ['USR02', 'AGR_USERS', 'AGR_1252']) {
+  for (const f of ['USR02', 'AGR_USERS', 'AGR_1252', 'USR21', 'ADRP', 'USR05', 'UST04']) {
     const filas = leerTexto(d[f]);
     const fe = filaEncabezado(f, filas);
     const tabla = armarTabla({ filas }, fe);
