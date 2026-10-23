@@ -333,13 +333,13 @@ const FUENTES = {
     ],
   },
   AGR_TEXTS: {
-    titulo: 'AGR_TEXTS — Descripciones de roles (opcional)', obligatoria: false, grupo: 'roles',
-    ayuda: 'SE16N → AGR_TEXTS. Solo hace falta si AGR_DEFINE no trae la descripción breve.',
+    titulo: 'AGR_TEXTS — Descripciones de roles', obligatoria: false, grupo: 'roles',
+    ayuda: 'SE16N → AGR_TEXTS. Completa descripciones que falten en AGR_DEFINE (se prefiere español, luego inglés).',
     campos: [
       ['agr', 'AGR_NAME — Rol', true, ['agr name', 'rol', 'role']],
       ['idioma', 'SPRAS — Idioma', false, ['spras', 'clave de idioma', 'idioma', 'language']],
-      ['linea', 'LINE — Línea', false, ['line', 'linea', 'numero de linea']],
-      ['texto', 'TEXT — Texto', true, ['text', 'texto', 'descripcion']],
+      ['linea', 'LINE — Línea', false, ['line', 'id', 'linea', 'numero de linea']],
+      ['texto', 'TEXT — Texto', true, ['text', 'descripcion breve del rol', 'texto', 'descripcion']],
     ],
   },
   AGR_AGRS: {
@@ -525,9 +525,10 @@ function procesar(fuente, tabla, mapeo) {
       const linea = Number(txt(val(f, 'linea')) || 0);
       if (!agr || !texto || linea !== 0) return; // solo la línea 0 (descripción breve)
       const idioma = txt(val(f, 'idioma')).toUpperCase();
+      const prioridad = idioma === 'S' || idioma === 'ES' ? 2 : idioma === 'E' || idioma === 'EN' ? 1 : 0;
       const previo = porClave.get(agr);
-      if (previo) { if (idioma === 'S' || idioma === 'ES') previo.texto = texto; return; }
-      const r = { agr, texto };
+      if (previo) { if (prioridad > previo.prioridad) Object.assign(previo, { texto, prioridad }); return; }
+      const r = { agr, texto, prioridad };
       porClave.set(agr, r);
       regs.push(r);
     } else if (fuente === 'AGR_AGRS') {

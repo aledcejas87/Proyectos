@@ -37,7 +37,7 @@ Solo se recuerdan en el navegador las reglas y decisiones del universo (exportab
 | | `AGR_AGRS` | Roles simples de cada rol compuesto (muestra "vía compuesto" en la ficha) |
 | | `AGR_FLAGS` | Atributos `COLL_AGR` (compuesto) y `OBSOLETE` (obsoleto) |
 | | `AGR_PROF` | Perfil generado por cada rol: separa con certeza perfiles de roles y perfiles manuales |
-| | `AGR_TEXTS` (opcional) | Descripciones que falten en AGR_DEFINE |
+| | `AGR_TEXTS` | Descripciones que falten en AGR_DEFINE (prefiere español, luego inglés) |
 | Complementos | `UST04` | Perfiles asignados directamente (`SAP_ALL`, `SAP_NEW`, manuales) |
 | | `USREFUS` | Usuarios de referencia (heredan permisos sin figurar en roles) y alias |
 | | `USR21` + `ADRP` | Nombre de cada usuario |
