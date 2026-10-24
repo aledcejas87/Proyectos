@@ -49,7 +49,8 @@ Con las 18 tablas de PRD la carga tarda alrededor de un minuto.
 | Fiori | `AGR_BUFFI` | Catálogos, grupos y servicios del menú de cada rol |
 | | `AGR_HIER` | Títulos de los catálogos del menú (admite varias partes) |
 | | `/UI2/PB_C_CHIP` | Contenido de los catálogos estándar: apps, objeto semántico y transacción / app UI5 destino |
-| | `/UI2/PB_C_CHIPM` | Contenido de los catálogos propios (capa de cliente); se carga como parte adicional de PB_C_CHIP |
+| | `/UI2/PB_C_CHIPM` | Catálogos propios (Z): referencias a tiles estándar de PB_C_CHIP; se carga junto con PB_C_CHIP y se suma |
+| Evidencia de uso (opcional) | `CDHDR`, `BKPF`, `MATDOC`/`MKPF`, `RBKP`, `EKKO`, `EBAN`, `VBAK`, `VBRK`, `LIKP`, `QAVE`, `LTAK`, `BALHDR`, `RSAU_BUF_DATA` | Quién creó o modificó documentos, con qué transacción y cuándo. Filtrar por fecha; el nombre del archivo debe contener el nombre de la tabla |
 | | `USOBHASH` | Nombres de los servicios autorizados por `S_SERVICE` |
 | Complementos | `UST04` | Perfiles asignados directamente (`SAP_ALL`, `SAP_NEW`, manuales) |
 | | `USREFUS` | Usuarios de referencia (heredan permisos sin figurar en roles) y alias |
@@ -100,6 +101,11 @@ La pestaña **Riesgos y SoD** (paso 5) evalúa reglas sobre las cuentas del univ
   (motivo, control mitigante, aprobador, vencimiento, evidencia) para hallazgos aceptados o mitigados.
   Todo es editable y se exporta/importa en JSON (`RIESGOS_BASE` para fijarlo como base).
 - Es nivel 2 (autorización configurada): indica una capacidad probable, no una verificación en el sistema.
+- **Uso observado** (si se cargan tablas de evidencia de uso): cada capacidad de un hallazgo se marca como usada
+  si el usuario dejó documentos con una de sus transacciones (o en una tabla o clase de CDHDR asociada, por
+  ejemplo EKKO → pedidos de compra). Un SoD con uso de ambas capacidades se marca como **conflicto ejercido**.
+  No reemplaza a ST03N/STAD ni a SM20: muestra lo que dejó un documento; la falta de evidencia no prueba
+  falta de uso (consultas, reportes y lo que no genera documentos no queda registrado).
 
 ## Historial, informe y respaldo
 
