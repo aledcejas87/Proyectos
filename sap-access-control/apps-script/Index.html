@@ -401,6 +401,46 @@ const FUENTES = {
       ['borrado', 'DELETED — Borrado', false, ['deleted', 'indica si objeto es borrado', 'borrado']],
     ],
   },
+  AGR_BUFFI: {
+    titulo: 'AGR_BUFFI — Catálogos y servicios Fiori por rol', obligatoria: false, grupo: 'fiori',
+    ayuda: 'SE16N → AGR_BUFFI. Catálogos (X-SAP-UI2-CATALOGPAGE), grupos y servicios del menú de cada rol. Se conservan solo los roles asignados.',
+    campos: [
+      ['agr', 'AGR_NAME — Rol', true, ['agr name', 'rol', 'role']],
+      ['objId', 'OBJECT_ID — Nodo', false, ['object id', 'id de objeto']],
+      ['url', 'URL — Enlace', true, ['url', 'enlace de internet', 'enlace']],
+    ],
+  },
+  AGR_HIER: {
+    titulo: 'AGR_HIER — Menú de los roles (opcional)', obligatoria: false, grupo: 'fiori',
+    ayuda: 'SE16N → AGR_HIER. Aporta el título de los catálogos del menú. Puede venir en varias partes.',
+    campos: [
+      ['agr', 'AGR_NAME — Rol', true, ['agr name', 'rol', 'role']],
+      ['objId', 'OBJECT_ID — Nodo', true, ['object id', 'id de objeto']],
+      ['texto', 'TEXT — Texto del nodo', true, ['text', 'texto nodo', 'texto']],
+    ],
+  },
+  PB_C_CHIP: {
+    titulo: '/UI2/PB_C_CHIP — Contenido de los catálogos Fiori', obligatoria: false, grupo: 'fiori',
+    ayuda: 'SE16N → /UI2/PB_C_CHIP. Apps (tiles y target mappings) de cada catálogo, con la transacción o app UI5 a la que llevan.',
+    campos: [
+      ['chip', 'PAGE_ID/INSTANCE — ID de CHIP', true, ['instance id', 'id de chip']],
+      ['catalogo', 'CATALOG_ID — Catálogo', true, ['catalog id', 'id de catalogo']],
+      ['config', 'CONFIGURATION', false, ['configuration', 'configuracion']],
+      ['base', 'CHIP_ID — Tipo de CHIP', false, ['chip id', 'id de chip 2']],
+      ['ref', 'REFERENCE_CHIP_ID — Referencia', false, ['reference chip id', 'id de chip 3']],
+      ['titulo', 'TITLE — Título', false, ['title', 'titulo', 'columna 12']],
+    ],
+  },
+  USOBHASH: {
+    titulo: 'USOBHASH — Nombres de servicios (S_SERVICE)', obligatoria: false, grupo: 'fiori',
+    ayuda: 'SE16N → USOBHASH. Traduce los códigos hash de S_SERVICE a nombres de servicios OData / Fiori.',
+    campos: [
+      ['hash', 'NAME — Hash', true, ['name', 'nombre']],
+      ['tipo', 'TYPE — Tipo', false, ['type', 'tipo ind verif']],
+      ['objTipo', 'OBJECT — Tipo de objeto', false, ['object', 'tipo objeto']],
+      ['objNombre', 'OBJ_NAME — Servicio', true, ['obj name', 'nombre de objeto']],
+    ],
+  },
   USREFUS: {
     titulo: 'USREFUS — Usuarios de referencia', obligatoria: false, grupo: 'complementos',
     ayuda: 'SE16N → USREFUS. Un usuario de referencia transfiere todos sus permisos sin figurar en los roles.',
@@ -530,7 +570,8 @@ function procesar(fuente, tabla, mapeo) {
   // Tablas grandes: se conservan solo los roles asignados a usuarios y las
   // transacciones que usan esos roles (si esas tablas ya están cargadas).
   let filtradas = 0, borradas = 0;
-  const rolesAsignados = (fuente === 'AGR_1251' || fuente === 'AGR_TCODES') && S.datos.AGR_USERS ? new Set(S.datos.AGR_USERS.regs.map((x) => x.agr)) : null;
+  const nodosFiori = fuente === 'AGR_HIER' && S.datos.AGR_BUFFI ? new Set(S.datos.AGR_BUFFI.regs.filter((x) => x.tipo === 'catalogo').map((x) => `${x.agr}|${x.objId}`)) : null;
+  const rolesAsignados = (fuente === 'AGR_1251' || fuente === 'AGR_TCODES' || fuente === 'AGR_BUFFI') && S.datos.AGR_USERS ? new Set(S.datos.AGR_USERS.regs.map((x) => x.agr)) : null;
   const txUsadas = fuente === 'TSTCT' && (S.datos.AGR_TCODES || S.datos.AGR_1251) ? new Set([
     ...(S.datos.AGR_TCODES ? S.datos.AGR_TCODES.regs.map((x) => x.tcode) : []),
     ...(S.datos.AGR_1251 ? S.datos.AGR_1251.regs.filter((x) => x.obj === 'S_TCODE' && x.campo === 'TCD' && !x.high && !x.low.includes('*')).map((x) => x.low) : []),
@@ -566,6 +607,39 @@ function procesar(fuente, tabla, mapeo) {
       if (claves.has(k)) return duplicadas++;
       claves.add(k);
       regs.push({ agr, varbl, low, high: txt(val(f, 'high')).toUpperCase() });
+    } else if (fuente === 'AGR_BUFFI') {
+      const agr = txt(val(f, 'agr')).toUpperCase(), url = txt(val(f, 'url'));
+      if (!agr || !url) return;
+      if (rolesAsignados && !rolesAsignados.has(agr)) return filtradas++;
+      let tipo = '', id = '';
+      if (url.startsWith('X-SAP-UI2-CATALOGPAGE:')) { tipo = 'catalogo'; id = url.slice(22).split('?')[0]; }
+      else if (url.startsWith('sap-ui2-group:')) { tipo = 'grupo'; id = url.slice(14).split('?')[0]; }
+      else if (url.startsWith('OTSERVICE')) { const m = /^OTSERVICE\s+(\S+)\s+(\S\S)\s*$/.exec(url); if (m) { tipo = 'servicio'; id = m[1]; } }
+      if (!tipo) return;
+      const k = `${agr}|${tipo}|${id}`;
+      if (claves.has(k)) return duplicadas++;
+      claves.add(k);
+      regs.push({ agr, objId: txt(val(f, 'objId')), tipo, id });
+    } else if (fuente === 'AGR_HIER') {
+      // Solo interesan los nodos de catálogos Fiori (para su título).
+      const agr = txt(val(f, 'agr')).toUpperCase(), objId = txt(val(f, 'objId')), texto = txt(val(f, 'texto'));
+      if (!nodosFiori || !nodosFiori.has(`${agr}|${objId}`) || !texto) return filtradas++;
+      regs.push({ agr, objId, texto });
+    } else if (fuente === 'PB_C_CHIP') {
+      const chip = txt(val(f, 'chip')), cat = txt(val(f, 'catalogo')).replace(/^X-SAP-UI2-CATALOGPAGE:/, '');
+      if (!chip) return;
+      // Se guarda una versión compacta de la configuración (la original es un JSON largo).
+      let cfg = {};
+      try { const c = JSON.parse(txt(val(f, 'config')) || '{}'); cfg = c.tileConfiguration ? JSON.parse(c.tileConfiguration) : {}; } catch (e) { cfg = {}; }
+      const base = txt(val(f, 'base')).replace('X-SAP-UI2-CHIP:', '');
+      regs.push({ chip, cat, base, ref: txt(val(f, 'ref')), titulo: cfg.display_title_text || txt(val(f, 'titulo')),
+        so: cfg.semantic_object || cfg.navigation_semantic_object || '', sa: cfg.semantic_action || cfg.navigation_semantic_action || '',
+        prov: cfg.navigation_provider || '', tcode: (cfg.transaction && cfg.transaction.code) || '', ui5: cfg.ui5_component || '',
+        wda: (cfg.web_dynpro && cfg.web_dynpro.application) || '', alias: cfg.target_application_alias || '' });
+    } else if (fuente === 'USOBHASH') {
+      const hash = txt(val(f, 'hash')).toUpperCase(), nombre = txt(val(f, 'objNombre')).replace(/\s+/g, ' ');
+      if (!hash || !nombre || txt(val(f, 'tipo')).toUpperCase() !== 'HT') return;
+      regs.push({ hash, objTipo: txt(val(f, 'objTipo')).toUpperCase(), nombre });
     } else if (fuente === 'AGR_TCODES') {
       const agr = txt(val(f, 'agr')).toUpperCase(), tcode = txt(val(f, 'tcode')).toUpperCase();
       if (!agr || !tcode) return rech.push(`Fila ${nf}: rol o transacción vacía`);
@@ -681,8 +755,9 @@ function procesar(fuente, tabla, mapeo) {
   for (const [c, k] of Object.entries(malas)) adv.push(`${k} fila(s) con ${c.toUpperCase()} no interpretable como fecha (quedó vacía).`);
   if (fuente === 'USREFUS' && !regs.some((r) => r.refuser)) adv.push('Ningún usuario tiene usuario de referencia asignado.');
   if (borradas) adv.push(`${n(borradas)} fila(s) de autorizaciones marcadas como borradas: descartadas.`);
-  if (filtradas) adv.push(fuente === 'TSTCT' ? `Se conservaron solo las descripciones de las transacciones usadas en los roles (${n(filtradas)} fila(s) no necesarias).` : `Se conservaron solo las filas de roles asignados a usuarios (${n(filtradas)} fila(s) de roles sin asignar descartadas).`);
-  if (!rolesAsignados && (fuente === 'AGR_1251' || fuente === 'AGR_TCODES')) adv.push('AGR_USERS no estaba cargada: se conservaron todos los roles. Para aliviar la memoria, cargá AGR_USERS primero o todo junto.');
+  if (filtradas) adv.push(fuente === 'TSTCT' ? `Se conservaron solo las descripciones de las transacciones usadas en los roles (${n(filtradas)} fila(s) no necesarias).` : fuente === 'AGR_HIER' ? `Se conservaron solo los títulos de los catálogos Fiori (${n(filtradas)} fila(s) del menú no necesarias).` : `Se conservaron solo las filas de roles asignados a usuarios (${n(filtradas)} fila(s) de roles sin asignar descartadas).`);
+  if (fuente === 'AGR_HIER' && !nodosFiori) adv.push('Cargá AGR_BUFFI antes que AGR_HIER (o todo junto): de AGR_HIER solo se usan los títulos de los catálogos Fiori.');
+  if (!rolesAsignados && (fuente === 'AGR_1251' || fuente === 'AGR_TCODES' || fuente === 'AGR_BUFFI')) adv.push('AGR_USERS no estaba cargada: se conservaron todos los roles. Para aliviar la memoria, cargá AGR_USERS primero o todo junto.');
   if (numericos) adv.push(`${numericos} usuario(s) solo numéricos: verificar que Excel no haya quitado ceros a la izquierda.`);
   if (duplicadas) adv.push(`${duplicadas} fila(s) duplicadas descartadas.`);
   if (rech.length) adv.push(`${rech.length} fila(s) rechazadas (p. ej.: ${rech.slice(0, 3).join('; ')}).`);
@@ -696,7 +771,7 @@ const S = {
   tab: 'cargar',
   fechaRef: hoyISO(),
   demo: false,
-  datos: { AGR_TCODES: null, TSTCT: null, AGR_1251: null, USR02: null, AGR_USERS: null, AGR_1252: null, USR05: null, REF: null, AGR_DEFINE: null, AGR_TEXTS: null, AGR_AGRS: null, AGR_FLAGS: null, AGR_PROF: null, UST04: null, USR21: null, ADRP: null, USREFUS: null }, // {regs, meta}
+  datos: { AGR_BUFFI: null, AGR_HIER: null, PB_C_CHIP: null, USOBHASH: null, AGR_TCODES: null, TSTCT: null, AGR_1251: null, USR02: null, AGR_USERS: null, AGR_1252: null, USR05: null, REF: null, AGR_DEFINE: null, AGR_TEXTS: null, AGR_AGRS: null, AGR_FLAGS: null, AGR_PROF: null, UST04: null, USR21: null, ADRP: null, USREFUS: null }, // {regs, meta}
   pendiente: null, // archivo leído esperando confirmación de mapeo
   lote: [], // resultado de la carga múltiple
   cargando: '',
@@ -820,6 +895,34 @@ function calcular() {
     if (x.obj === 'S_TCODE' && x.campo === 'TCD' && x.low) (stcode[x.agr] = stcode[x.agr] || []).push(x);
   });
   regs('TSTCT').forEach((x) => (textoTx[x.tcode] = x.texto));
+  // Fiori: catálogos, grupos y servicios por rol; apps de cada catálogo; nombres de servicios.
+  const fioriRol = {};
+  const fr = (agr) => (fioriRol[agr] = fioriRol[agr] || { catalogos: [], grupos: [], servicios: [] });
+  regs('AGR_BUFFI').forEach((x) => fr(x.agr)[x.tipo === 'catalogo' ? 'catalogos' : x.tipo === 'grupo' ? 'grupos' : 'servicios'].push(x.id));
+  const tituloCatalogo = {};
+  const nodoCat = {};
+  regs('AGR_BUFFI').forEach((x) => { if (x.tipo === 'catalogo') nodoCat[`${x.agr}|${x.objId}`] = x.id; });
+  regs('AGR_HIER').forEach((x) => { const id = nodoCat[`${x.agr}|${x.objId}`]; if (id && !tituloCatalogo[id]) tituloCatalogo[id] = x.texto; });
+  const chipPorId = {}, chipsCat = {};
+  regs('PB_C_CHIP').forEach((x) => { chipPorId[x.chip] = x; (chipsCat[x.cat] = chipsCat[x.cat] || []).push(x); });
+  const appsCatCache = {};
+  // Apps de un catálogo: target mappings (a dónde lleva) con el título del tile que las lanza.
+  const appsDeCatalogo = (cat) => {
+    if (appsCatCache[cat]) return appsCatCache[cat];
+    const resolver = (x) => (x.ref && chipPorId[x.ref] ? Object.assign({}, chipPorId[x.ref], { titulo: x.titulo || chipPorId[x.ref].titulo }) : x);
+    const filas = (chipsCat[cat] || []).map(resolver);
+    const titulos = {};
+    filas.filter((x) => /APPLAUNCHER/.test(x.base)).forEach((x) => { if (x.so) titulos[`${x.so}-${x.sa}`] = x.titulo; });
+    const apps = filas.filter((x) => x.base === '/UI2/ACTION').map((x) => ({ so: x.so, sa: x.sa, titulo: titulos[`${x.so}-${x.sa}`] || x.titulo || `${x.so}-${x.sa}`,
+      tipo: x.prov === 'TR' ? 'Transacción' : x.prov === 'SAPUI5' ? 'App UI5' : x.prov === 'WDA' ? 'Web Dynpro' : x.prov || '—', destino: x.tcode || x.ui5 || x.wda || x.alias || '' }));
+    return (appsCatCache[cat] = apps);
+  };
+  const nombreServicio = {};
+  regs('USOBHASH').forEach((x) => (nombreServicio[x.hash] = x.nombre));
+  const hayFiori = !!(S.datos.AGR_BUFFI || S.datos.USOBHASH);
+  // Servicios autorizados por S_SERVICE en cada rol (nombres, si USOBHASH está cargada).
+  const serviciosRol = {};
+  regs('AGR_1251').forEach((x) => { if (x.obj === 'S_SERVICE' && x.campo === 'SRV_NAME' && x.low) (serviciosRol[x.agr] = serviciosRol[x.agr] || new Set()).add(x.low === '*' ? '* (todos)' : nombreServicio[x.low] || x.low); });
   const hayTx = !!(S.datos.AGR_TCODES || S.datos.AGR_1251);
   // Por rol: ¿habilita todas las transacciones? ¿qué críticas tiene (menú o S_TCODE)?
   const riesgoRol = {};
@@ -945,6 +1048,7 @@ function calcular() {
       rolesTodasTx: hayTx ? [...new Set(vig.filter((r) => riesgoDe(r.agr).todas).map((r) => r.agr))] : [],
       txCriticas: hayTx ? [...new Set(vig.flatMap((r) => [...riesgoDe(r.agr).criticas]))].sort() : [],
       txMenu: hayTx ? new Set(vig.flatMap((r) => (txMenu[r.agr] || []).map((t) => t.tcode))).size : 0,
+      catalogos: hayFiori ? [...new Set(vig.flatMap((r) => (fioriRol[r.agr] || { catalogos: [] }).catalogos))] : [],
       nombre: nombres[u.bname] || (enRef ? enRef.nombre : ''), perfilesDirectos, perfilesGenerados: susPerfiles.length - perfilesDirectos.length,
       critico: perfilesDirectos.some((p) => PERFILES_CRITICOS.has(p)), params: params[u.bname] || [],
       bloqueada, motivos: motivosBloqueo(u.uflag), vigCuenta, utilizable: !bloqueada && vigCuenta === 'vigente',
@@ -966,7 +1070,7 @@ function calcular() {
     else x.fuera++;
   }
   const huerfanas = [...new Set(asig.filter((a) => !porNombre[a.uname]).map((a) => a.uname))];
-  S.calc = { hayTx, txMenu, stcode, autRol, textoTx, infoRol, catalogo, catPorK, tagsRol, cuentas, porNombre, universo, roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
+  S.calc = { hayFiori, fioriRol, tituloCatalogo, appsDeCatalogo, nombreServicio, serviciosRol, chipsCat, hayTx, txMenu, stcode, autRol, textoTx, infoRol, catalogo, catPorK, tagsRol, cuentas, porNombre, universo, roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
   S.calc.riesgos = evaluarRiesgos();
 }
 
@@ -1018,7 +1122,7 @@ function pie(lista, pg, clave) {
 
 // ---------------------------------------------------------- vista: cargar
 const ETIQUETAS_CAMPO = { BUKRS: 'la sociedad', VKORG: 'la organización de ventas', KOKRS: 'la sociedad CO', EKORG: 'la organización de compras', KKBER: 'el área de control de créditos', VKBUR: 'la oficina de ventas', VKGRP: 'el grupo de vendedores', WERKS: 'el centro', SWERK: 'el centro de mantenimiento', BWKEY: 'el ámbito de valoración', IWERK: 'el centro de planificación' };
-const GRUPOS = [['base', 'Necesarios'], ['pistas', 'Pistas de país'], ['roles', 'Estructura de roles'], ['permisos', 'Transacciones y autorizaciones'], ['complementos', 'Complementos']];
+const GRUPOS = [['base', 'Necesarios'], ['pistas', 'Pistas de país'], ['roles', 'Estructura de roles'], ['permisos', 'Transacciones y autorizaciones'], ['fiori', 'Fiori'], ['complementos', 'Complementos']];
 function vistaCargar() {
   const zona = ([f, def]) => {
     const d = S.datos[f];
@@ -1192,7 +1296,9 @@ function evaluarRiesgos() {
     for (const i of Object.values(porAuth)) (inst[agr][i.obj] = inst[agr][i.obj] || []).push(i.campos);
   }
   const cubre = (vals, req) => (req === '+' ? vals.some((v) => !esVacio(v)) : req.some((r) => vals.some((v) => v.low === '*' || coincide(r, v))));
-  const capPorId = Object.fromEntries(R.capacidades.map((c) => [c.id, { ...c, lineas: c.obj.map(parsearCondicion) }]));
+  // En S_SERVICE se puede escribir SRV_NAME=@NOMBRE (por ejemplo @API_SALES_ORDER_SRV): se traduce a los hash de USOBHASH.
+  const hashesDe = (nombre) => Object.entries(C.nombreServicio || {}).filter(([, nom]) => nom.toUpperCase().startsWith(nombre)).map(([hsh]) => hsh);
+  const capPorId = Object.fromEntries(R.capacidades.map((c) => [c.id, { ...c, lineas: c.obj.map((l) => parsearCondicion(l).map((alt) => ({ obj: alt.obj, conds: alt.conds.map((q) => (q.valores !== '+' && q.valores.some((v) => v.startsWith('@')) ? { campo: q.campo, valores: q.valores.flatMap((v) => (v.startsWith('@') ? hashesDe(v.slice(1)) : [v])) } : q)) }))) }]));
   const evaluar = (c, cap) => {
     if (c.perfilesDirectos.includes('SAP_ALL')) return { ok: true, via: ['SAP_ALL (perfil directo)'], roles: ['SAP_ALL'] };
     const via = [], todos = [];
@@ -1343,7 +1449,7 @@ function vistaRiesgos() {
   </div>
   <div class="card">
     <div class="card-h"><h2>Capacidades</h2><button class="btn" data-accion="rk-nueva-cap">Agregar capacidad</button></div>
-    <p class="t2 peq" style="margin-top:0">Transacciones: alcanza con una autorizada por S_TCODE (si no hay AGR_1251, se usa el menú). Condiciones: una línea por autorización requerida, todas deben cumplirse: <span class="mono">OBJETO CAMPO=valor1,valor2 CAMPO2=+</span> ("+" = cualquier valor no vacío; un valor * en el rol cubre todo). Alternativas en la misma línea con <span class="mono">||</span>. Un usuario con SAP_ALL cumple todas.</p>
+    <p class="t2 peq" style="margin-top:0">Transacciones: alcanza con una autorizada por S_TCODE (si no hay AGR_1251, se usa el menú). Condiciones: una línea por autorización requerida, todas deben cumplirse: <span class="mono">OBJETO CAMPO=valor1,valor2 CAMPO2=+</span> ("+" = cualquier valor no vacío; un valor * en el rol cubre todo). Alternativas en la misma línea con <span class="mono">||</span>. Para servicios Fiori/OData podés usar el nombre: <span class="mono">S_SERVICE SRV_NAME=@API_SALES_ORDER_SRV</span> (requiere USOBHASH). Un usuario con SAP_ALL cumple todas.</p>
     <div class="tabla-wrap"><table class="t"><thead><tr><th>Capacidad</th><th>Transacciones</th><th>Condiciones de autorización</th><th class="num">Cuentas que la tienen</th><th>Estado</th><th></th></tr></thead><tbody>
     ${R.capacidades.map((c, i) => (enArea(c) ? `<tr>
       <td><input class="campo" data-rk-cap="${i}" data-prop="nombre" value="${h(c.nombre)}"><div class="peq muted mono">${h(c.id)}</div></td>
@@ -1808,7 +1914,8 @@ function vistaConsulta() {
   let res = '';
   if (q) {
     let porRol = {};
-    if (U.qModo === 'tx') {
+    if (U.qModo === 'fiori') { /* se resuelve abajo */ }
+    else if (U.qModo === 'tx') {
       for (const agr of Object.keys(C.rolesTodos)) {
         const menu = (C.txMenu[agr] || []).some((t) => t.tcode === q);
         const aut = (C.stcode[agr] || []).filter((v) => coincide(q, v));
@@ -1821,19 +1928,31 @@ function vistaConsulta() {
         if (filas.length) porRol[agr] = filas.slice(0, 6).map((x) => `${x.campo}=${x.high ? x.low + '–' + x.high : x.low}`).join(', ') + (filas.length > 6 ? '…' : '');
       }
     }
+    if (U.qModo === 'fiori') {
+      const t = q;
+      for (const agr of Object.keys(C.rolesTodos)) {
+        const f = C.fioriRol[agr] || { catalogos: [] }, hits = [];
+        for (const cat of f.catalogos) {
+          if (cat.toUpperCase().includes(t) || (C.tituloCatalogo[cat] || '').toUpperCase().includes(t)) hits.push('catálogo ' + cat);
+          for (const a of C.appsDeCatalogo(cat)) if (a.titulo.toUpperCase().includes(t) || `${a.so}-${a.sa}`.toUpperCase().includes(t) || a.destino.toUpperCase().includes(t)) hits.push(`${a.titulo} (${cat})`);
+        }
+        for (const sv of C.serviciosRol[agr] || []) if (sv.toUpperCase().includes(t)) hits.push('servicio ' + sv);
+        if (hits.length) porRol[agr] = [...new Set(hits)].slice(0, 4).join(', ') + (hits.length > 4 ? '…' : '');
+      }
+    }
     const filas = C.universo.map((c) => ({ c, roles: c.vigentes.filter((r) => porRol[r]) })).filter((x) => x.roles.length);
     const txt = U.qModo === 'tx' ? (C.textoTx[q] || TX_CRITICAS[q] || '') : '';
-    res = `<p class="t2" style="margin:8px 0">${U.qModo === 'tx' ? `<b class="mono">${h(q)}</b> ${h(txt)}` : `Objeto <b class="mono">${h(q)}</b>`}: <b>${n(filas.length)}</b> cuenta(s) del universo, por ${n(Object.keys(porRol).filter((r) => C.rolesTodos[r] && C.rolesTodos[r].enUniverso).length)} rol(es).</p>
+    res = `<p class="t2" style="margin:8px 0">${U.qModo === 'tx' ? `<b class="mono">${h(q)}</b> ${h(txt)}` : U.qModo === 'fiori' ? `Fiori: <b>${h(q)}</b>` : `Objeto <b class="mono">${h(q)}</b>`}: <b>${n(filas.length)}</b> cuenta(s) del universo, por ${n(Object.keys(porRol).filter((r) => C.rolesTodos[r] && C.rolesTodos[r].enUniverso).length)} rol(es).</p>
       ${filas.length ? `<div class="tabla-wrap" style="max-height:400px"><table class="t"><thead><tr><th>Usuario</th><th>País</th><th>Estado</th><th>Por los roles</th></tr></thead><tbody>
       ${filas.map(({ c, roles }) => `<tr><td><button class="link mono" data-ficha="${h(c.bname)}">${h(c.bname)}</button>${c.nombre ? `<div class="peq t2">${h(c.nombre)}</div>` : ''}</td><td>${c.pais.map(tagPais).join(' ')}</td><td>${tagEstado(c)}</td><td class="peq">${roles.map((r) => `<span class="mono">${h(r)}</span> <span class="muted">${h(porRol[r])}</span>`).join('<br>')}</td></tr>`).join('')}
       </tbody></table></div>` : ''}`;
   }
   return `<div class="card">
     <div class="card-h"><h2>Consulta inversa: ¿quién tiene…?</h2></div>
-    <p class="t2 peq" style="margin-top:0">Por transacción: busca en el menú de los roles (AGR_TCODES) y en S_TCODE (AGR_1251), incluidos patrones como Z*. Por objeto: busca el objeto de autorización y, si se indica, el campo y un valor (respeta * y rangos).</p>
+    <p class="t2 peq" style="margin-top:0">Por transacción: busca en el menú de los roles (AGR_TCODES) y en S_TCODE (AGR_1251), incluidos patrones como Z*. Por objeto: busca el objeto de autorización y, si se indica, el campo y un valor (respeta * y rangos). Por Fiori: busca el texto en títulos de apps, objetos semánticos, destinos, catálogos y nombres de servicios.</p>
     <div class="fila">
-      <select class="campo" id="qModo"><option value="tx" ${U.qModo === 'tx' ? 'selected' : ''}>Transacción</option><option value="obj" ${U.qModo === 'obj' ? 'selected' : ''}>Objeto de autorización</option></select>
-      <input class="campo mono" id="qCodigo" placeholder="${U.qModo === 'tx' ? 'p. ej. ME21N' : 'p. ej. F_BKPF_BUK'}" value="${h(U.qCodigo)}">
+      <select class="campo" id="qModo"><option value="tx" ${U.qModo === 'tx' ? 'selected' : ''}>Transacción</option><option value="obj" ${U.qModo === 'obj' ? 'selected' : ''}>Objeto de autorización</option>${C.hayFiori ? `<option value="fiori" ${U.qModo === 'fiori' ? 'selected' : ''}>App / catálogo / servicio Fiori</option>` : ''}</select>
+      <input class="campo mono" id="qCodigo" placeholder="${U.qModo === 'tx' ? 'p. ej. ME21N' : U.qModo === 'fiori' ? 'p. ej. Purchase Order, SAP_MM_BC, API_SALES' : 'p. ej. F_BKPF_BUK'}" value="${h(U.qCodigo)}">
       ${U.qModo === 'obj' ? `<input class="campo mono" id="qCampo" placeholder="Campo (opcional), p. ej. BUKRS" value="${h(U.qCampo)}"><input class="campo mono" id="qValor" placeholder="Valor (opcional), p. ej. UY10" value="${h(U.qValor)}">` : ''}
       <button class="btn" data-accion="q-buscar">Buscar</button>
     </div>
@@ -1880,6 +1999,7 @@ function vistaAnalisis() {
     ${stat('Utilizables', u.filter((c) => c.utilizable).length, 'sin bloqueo y vigentes', 'a-utilizables')}
     ${S.datos.UST04 ? stat('Con SAP_ALL / SAP_NEW', u.filter((c) => c.critico).length, 'asignado directamente', 'a-s:perfilCritico') : ''}
     ${stat('Roles distintos', C.roles.length, 'con asignación vigente')}
+    ${C.hayFiori ? stat('Con catálogos Fiori', u.filter((c) => c.catalogos.length).length, 'cuentas del universo') : ''}
     ${C.hayTx ? stat('Transacciones distintas', new Set(u.flatMap((c) => c.vigentes.flatMap((r) => (C.txMenu[r] || []).map((t) => t.tcode)))).size, 'en el menú de sus roles') : ''}
     ${stat('Asignaciones vigentes', asigVig)}
   </div>
@@ -1980,6 +2100,7 @@ function fichaCuenta(b) {
     </div>
     ${seccionRiesgos(c)}
     ${S.calc.hayTx ? seccionTransacciones(c) : ''}
+    ${seccionFiori(c.vigentes, 'Fiori')}
     <p class="t2 peq">${S.calc.hayTx ? 'Menú (AGR_TCODES) y S_TCODE (AGR_1251) son nivel 1 y 2: asignación y autorización configurada. No prueban que la transacción se pueda completar (faltan los demás objetos que chequea cada transacción) ni que se use. Falta Fiori y uso real.' : 'Falta extraer: transacciones (AGR_TCODES), autorizaciones (AGR_1251), Fiori y uso real.'}</p>`);
 }
 // Transacciones de una cuenta: unión del menú de sus roles vigentes y de los
@@ -2001,6 +2122,27 @@ function seccionTransacciones(c) {
     <div class="tabla-wrap" style="max-height:420px"><table class="t"><thead><tr><th>Transacción</th><th>Descripción</th><th>En el menú de</th><th>Autorizada (S_TCODE)</th></tr></thead><tbody>
     ${filas.map(([codigo, x]) => `<tr><td class="mono">${h(codigo)} ${TX_CRITICAS[codigo] ? '<span class="tag warn"><i></i>Crítica</span>' : ''}${x.tipo === 'OT' ? ' <span class="tag"><i></i>Otro objeto</span>' : ''}</td><td class="peq">${h(C.textoTx[codigo] || TX_CRITICAS[codigo] || '')}</td><td class="mono peq">${h([...x.menu].join(', ')) || '<span class="muted">—</span>'}</td><td class="peq">${x.aut.size ? `Sí <span class="mono muted">${h([...x.aut].slice(0, 3).join(', '))}${x.aut.size > 3 ? '…' : ''}</span>` : (C.stcode && Object.keys(C.stcode).length ? '<span class="tag warn"><i></i>No en S_TCODE</span>' : '—')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Sin transacciones.</td></tr>'}
     </tbody></table></div></div>`;
+}
+function seccionFiori(roles, titulo) {
+  const C = S.calc;
+  if (!C.hayFiori) return '';
+  const cats = [...new Set(roles.flatMap((r) => (C.fioriRol[r] || { catalogos: [] }).catalogos))].sort();
+  const grupos = [...new Set(roles.flatMap((r) => (C.fioriRol[r] || { grupos: [] }).grupos))].sort();
+  const apps = {};
+  for (const cat of cats) for (const a of C.appsDeCatalogo(cat)) { const k = `${a.so}-${a.sa}|${a.destino}`; (apps[k] = apps[k] || Object.assign({ cats: new Set() }, a)).cats.add(cat); }
+  const servicios = [...new Set(roles.flatMap((r) => [...(C.serviciosRol[r] || [])]))].sort();
+  const sinContenido = cats.filter((c) => !(C.chipsCat[c] || []).length);
+  const lista = Object.values(apps).sort((a, b) => a.titulo.localeCompare(b.titulo));
+  return `<div class="card"><h2>${titulo} (${n(cats.length)} catálogos, ${n(lista.length)} apps, ${n(servicios.length)} servicios)</h2>
+    ${cats.length ? `<p class="peq" style="margin:0 0 6px"><b>Catálogos:</b> ${cats.map((c) => `<span class="mono">${h(c)}</span>${C.tituloCatalogo[c] ? ` <span class="t2">${h(C.tituloCatalogo[c])}</span>` : ''}`).join(' · ')}</p>` : '<p class="t2 peq" style="margin:0 0 6px">Sin catálogos Fiori en el menú de sus roles.</p>'}
+    ${grupos.length ? `<p class="peq t2" style="margin:0 0 6px"><b>Grupos:</b> ${h(grupos.join(', '))}</p>` : ''}
+    ${sinContenido.length ? `<p class="peq" style="margin:0 0 6px"><span class="tag warn"><i></i>Sin contenido cargado</span> ${h(sinContenido.join(', '))} (catálogos propios: su contenido está en /UI2/PB_C_CHIPM)</p>` : ''}
+    ${lista.length ? `<div class="tabla-wrap" style="max-height:340px"><table class="t"><thead><tr><th>App</th><th>Objeto semántico</th><th>Tipo</th><th>Destino</th><th>Catálogo</th></tr></thead><tbody>
+      ${lista.map((a) => `<tr><td>${h(a.titulo)}${a.tipo === 'Transacción' && TX_CRITICAS[a.destino] ? ' <span class="tag warn"><i></i>Crítica</span>' : ''}</td><td class="mono peq">${h(a.so)}-${h(a.sa)}</td><td class="peq">${h(a.tipo)}</td><td class="mono peq">${h(a.destino)}</td><td class="mono peq">${h([...a.cats].join(', '))}</td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    ${servicios.length ? `<details class="peq" style="margin-top:8px"><summary><b>Servicios autorizados por S_SERVICE (${n(servicios.length)})</b></summary><p class="mono">${h(servicios.join(', '))}</p></details>` : ''}
+    <p class="t2 peq" style="margin:6px 0 0">Una app en el catálogo no alcanza para usarla: también hacen falta su servicio (S_SERVICE) y, si lleva a una transacción, S_TCODE y los objetos que la transacción chequea.</p>
+  </div>`;
 }
 function fichaRol(agr) {
   const r = S.calc.rolesTodos[agr];
@@ -2027,6 +2169,7 @@ function fichaRol(agr) {
         ${Object.entries(porObj).sort((a, b) => a[0].localeCompare(b[0])).flatMap(([o, campos]) => Object.entries(campos).map(([cpo, vals], i) => `<tr><td class="mono">${i === 0 ? h(o) : ''}</td><td class="mono">${h(cpo)}</td><td class="mono peq">${h([...vals].slice(0, 30).join(', '))}${vals.size > 30 ? ` … (+${vals.size - 30})` : ''}</td></tr>`)).join('') || '<tr><td colspan="3" class="muted">Sin autorizaciones cargadas.</td></tr>'}
         </tbody></table></div></div>`;
     })() : ''}
+    ${seccionFiori([agr], 'Fiori del rol')}
     <div class="card" style="margin-top:12px"><h2>Cuentas del universo con el rol vigente</h2><div class="tabla-wrap"><table class="t"><thead><tr><th>Usuario</th><th>País</th><th>Estado</th><th>Área</th></tr></thead><tbody>${filas}</tbody></table></div></div>`);
 }
 
@@ -2058,9 +2201,9 @@ async function elegirArchivo(fuente, file, agregar = false) {
   render();
   document.getElementById('mapeo').scrollIntoView({ behavior: 'smooth' });
 }
-const ORDEN_NOMBRES = ['AGR_USERS', 'AGR_1252', 'AGR_1251', 'AGR_TCODES', 'AGR_DEFINE', 'AGR_TEXTS', 'AGR_AGRS', 'AGR_FLAGS', 'AGR_PROF', 'USREFUS', 'USR02', 'USR05', 'USR21', 'UST04', 'ADRP', 'TSTCT'];
+const ORDEN_NOMBRES = ['AGR_BUFFI', 'AGR_HIER', 'PB_C_CHIP', 'USOBHASH', 'AGR_USERS', 'AGR_1252', 'AGR_1251', 'AGR_TCODES', 'AGR_DEFINE', 'AGR_TEXTS', 'AGR_AGRS', 'AGR_FLAGS', 'AGR_PROF', 'USREFUS', 'USR02', 'USR05', 'USR21', 'UST04', 'ADRP', 'TSTCT'];
 // Orden de procesamiento: las tablas que filtran a otras van primero.
-const ORDEN_CARGA = ['USR02', 'AGR_USERS', 'USR21', 'ADRP', 'USR05', 'UST04', 'USREFUS', 'AGR_1252', 'AGR_DEFINE', 'AGR_TEXTS', 'AGR_AGRS', 'AGR_FLAGS', 'AGR_PROF', 'AGR_TCODES', 'AGR_1251', 'TSTCT'];
+const ORDEN_CARGA = ['USR02', 'AGR_USERS', 'USR21', 'ADRP', 'USR05', 'UST04', 'USREFUS', 'AGR_1252', 'AGR_DEFINE', 'AGR_TEXTS', 'AGR_AGRS', 'AGR_FLAGS', 'AGR_PROF', 'AGR_TCODES', 'AGR_1251', 'TSTCT', 'AGR_BUFFI', 'AGR_HIER', 'PB_C_CHIP', 'USOBHASH'];
 const fuentePorNombre = (nombre) => { const up = nombre.toUpperCase(); return ORDEN_NOMBRES.find((f) => up.includes(f) || up.includes(f.replace('_', ''))) || null; };
 function detectarFuente(nombre, archivo) {
   const porNombre = fuentePorNombre(nombre);

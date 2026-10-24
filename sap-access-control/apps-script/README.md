@@ -46,6 +46,11 @@ Con las 18 tablas de PRD la carga tarda alrededor de un minuto.
 | Transacciones y autorizaciones | `AGR_TCODES` | Transacciones del menú de cada rol |
 | | `TSTCT` | Descripción de las transacciones (se prefiere español) |
 | | `AGR_1251` | Objetos, campos y valores de autorización; admite varias partes (`_1`, `_2`, `_3`) que se suman |
+| Fiori | `AGR_BUFFI` | Catálogos, grupos y servicios del menú de cada rol |
+| | `AGR_HIER` | Títulos de los catálogos del menú (admite varias partes) |
+| | `/UI2/PB_C_CHIP` | Contenido de los catálogos estándar: apps, objeto semántico y transacción / app UI5 destino |
+| | `/UI2/PB_C_CHIPM` | Contenido de los catálogos propios (capa de cliente); se carga como parte adicional de PB_C_CHIP |
+| | `USOBHASH` | Nombres de los servicios autorizados por `S_SERVICE` |
 | Complementos | `UST04` | Perfiles asignados directamente (`SAP_ALL`, `SAP_NEW`, manuales) |
 | | `USREFUS` | Usuarios de referencia (heredan permisos sin figurar en roles) y alias |
 | | `USR21` + `ADRP` | Nombre de cada usuario |
