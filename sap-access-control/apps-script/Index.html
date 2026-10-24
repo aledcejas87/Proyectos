@@ -8,6 +8,18 @@
 <!-- Librerías de lectura de archivos (solo se usan en el navegador; ningún dato sale del equipo). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// Diagnóstico de arranque: si el código principal falla o el archivo quedó incompleto, se muestra el motivo.
+window.__errorArranque = '';
+window.addEventListener('error', function (e) { if (!window.__listo) window.__errorArranque = (e.message || 'error') + (e.lineno ? ' (línea ' + e.lineno + ')' : ''); });
+setTimeout(function () {
+  if (window.__listo) return;
+  var app = document.getElementById('app');
+  if (app) app.innerHTML = '<div class="aviso crit"><b>La aplicación no terminó de cargar</b>' +
+    (window.__errorArranque ? 'Error: ' + window.__errorArranque.replace(/</g, '&lt;') + '. ' : '') +
+    'Lo más común es que el archivo Index haya quedado incompleto al pegarlo: su última línea tiene que ser &lt;/html&gt; (son ' + 'unas 2.800 líneas). Pegalo de nuevo completo, guardá y publicá una nueva versión.</div>';
+}, 4000);
+</script>
 <style>
 :root {
   /* Tema claro con la identidad de Scienza (bordó). */
@@ -2810,6 +2822,7 @@ if (!window.Papa || !window.XLSX) {
 } else {
   render();
 }
+window.__listo = true;
 </script>
 </body>
 </html>
