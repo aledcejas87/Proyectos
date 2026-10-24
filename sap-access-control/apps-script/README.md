@@ -124,3 +124,25 @@ La pestaña **Historial e informe** (paso 6):
 
 El repositorio es **público**. Nunca subir extracciones reales, universos exportados ni configuraciones con
 usuarios reales. El `.gitignore` de la raíz bloquea `.xlsx`, `.csv` y `.txt` por las dudas.
+
+## Base de datos en Google Sheets (versión Apps Script)
+
+Publicada en Apps Script, la aplicación guarda sus definiciones en una hoja de cálculo privada que
+`Codigo.gs` crea la primera vez en el Drive de quien la implementa (el id queda en las propiedades del
+script, `SPREADSHEET_ID`).
+
+- Se guardan: parametrización de países, decisiones del universo, reglas y capacidades, estados de
+  hallazgos y excepciones, historial de extracciones y logo. Cada cambio se guarda solo a los pocos
+  segundos; el estado se ve en el encabezado (enlace a la hoja).
+- **Las tablas de SAP no se guardan**: se procesan en el navegador y se cargan en cada sesión.
+- La pestaña `_datos` es la base (JSON en bloques de 40.000 caracteres; no editar). `Universo`,
+  `Parametrización`, `Reglas`, `Capacidades`, `Hallazgos tratados` e `Historial` son copias legibles que
+  se regeneran en cada guardado.
+- La primera vez, lo que estaba guardado en el navegador se sube a la hoja automáticamente.
+- Si no se puede leer la hoja, la app muestra la última copia del navegador y no escribe en Sheets
+  (para no pisar información más nueva) hasta que se reintente.
+- Implementación: ejecutar como **Yo** y acceso **Solo yo** (`appsscript.json`), porque la hoja contiene
+  datos de usuarios y hallazgos de seguridad.
+- Apps Script interpreta `/*` como comienzo de comentario aun dentro del HTML: no usar esa secuencia
+  fuera de comentarios reales (por ejemplo `accept="image/*"`).
+

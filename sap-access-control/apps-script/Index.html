@@ -49,6 +49,10 @@ nav.tabs button.activo { background: #fff; color: var(--brand); font-weight: 600
 nav.tabs button .paso { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; background: rgba(255,255,255,.2); margin-right: 6px; }
 nav.tabs button.activo .paso { background: var(--brand); color: #fff; }
 h1 { color: var(--brand-2); }
+.sync { margin-left: auto; font-size: 12px; color: rgba(255,255,255,.9); display: inline-flex; align-items: center; gap: 6px; }
+.sync::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.6); }
+.sync.ok::before { background: #7fe08a; } .sync.pend::before { background: #ffd166; } .sync.mal::before { background: #ff8a8a; }
+.sync a { color: inherit; text-decoration: none; } .sync a:hover { text-decoration: underline; }
 .stat { border-top: 3px solid var(--brand); }
 .stat.alerta { border-top-color: var(--crit); } .stat.atencion { border-top-color: var(--warn); } .stat.bien { border-top-color: var(--good); }
 .bienvenida { background: linear-gradient(120deg, var(--brand-2), var(--brand)); color: #fff; border-radius: 14px; padding: 20px; margin-bottom: 16px; }
@@ -141,6 +145,7 @@ details summary { cursor: pointer; }
     <button data-tab="historial"><span class="paso">6</span>Historial e informe</button>
     <button data-tab="registro"><span class="paso">i</span>Registro y ayuda</button>
   </nav>
+  <span id="sync" class="sync"></span>
 </header>
 <main id="app"></main>
 <div id="cajon-raiz"></div>
@@ -164,8 +169,53 @@ const fmtFecha = (iso) => { if (!iso) return '—'; if (iso === '9999-12-31') re
 const dias = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 const PAISES = { UY: 'Uruguay', CL: 'Chile', AR: 'Argentina', OTRO: 'Otro país', NEUTRO: 'Sin país (ignorar)' };
 
-function guardarLocal(clave, valor) { try { localStorage.setItem(clave, JSON.stringify(valor)); } catch (e) { /* almacenamiento no disponible */ } }
-function leerLocal(clave, defecto) { try { const v = localStorage.getItem(clave); return v ? JSON.parse(v) : defecto; } catch (e) { return defecto; } }
+// Persistencia. Publicada en Apps Script, la base es una hoja de cálculo privada
+// (Codigo.gs): se lee al abrir y cada cambio se guarda solo, pocos segundos después.
+// Abierta como archivo local, se guarda en este navegador.
+const EN_GAS = !!(window.google && google.script && google.script.run);
+const ALMACEN = {}; // clave → JSON en texto (modo Google Sheets)
+const SYNC = { estado: EN_GAS ? 'cargando' : 'local', pendientes: new Set(), enVuelo: new Set(), ultimo: '', error: '', url: '', nombre: '' };
+const temporizadores = {};
+function guardarLocal(clave, valor) {
+  const txt = JSON.stringify(valor);
+  try { localStorage.setItem(clave, txt); } catch (e) { /* almacenamiento no disponible */ }
+  if (EN_GAS) { ALMACEN[clave] = txt; programarGuardado(clave); }
+}
+function leerLocal(clave, defecto) {
+  try { const v = EN_GAS ? ALMACEN[clave] : localStorage.getItem(clave); return v ? JSON.parse(v) : defecto; } catch (e) { return defecto; }
+}
+function programarGuardado(clave, demora = 1200) {
+  SYNC.pendientes.add(clave); pintarSync();
+  clearTimeout(temporizadores[clave]);
+  temporizadores[clave] = setTimeout(() => enviarClave(clave), demora);
+}
+function enviarClave(clave) {
+  if (SYNC.estado === 'error-carga') return; // sin leer la base no se escribe: se podría pisar información más nueva
+  if (SYNC.enVuelo.has(clave)) return programarGuardado(clave, 800); // un envío por clave a la vez, en orden
+  const txt = ALMACEN[clave];
+  SYNC.enVuelo.add(clave); pintarSync();
+  google.script.run
+    .withSuccessHandler((r) => { SYNC.enVuelo.delete(clave); if (ALMACEN[clave] === txt) SYNC.pendientes.delete(clave); SYNC.ultimo = r.actualizado; SYNC.error = ''; pintarSync(); })
+    .withFailureHandler((e) => { SYNC.enVuelo.delete(clave); SYNC.error = (e && e.message) || String(e); pintarSync(); programarGuardado(clave, 15000); })
+    .guardarClave(clave, txt);
+}
+function guardarTodoAhora() { Object.keys(ALMACEN).forEach((k) => programarGuardado(k, 10)); }
+function pintarSync() {
+  const el = document.getElementById('sync');
+  if (!el) return;
+  const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' }) : '');
+  let txt, cls;
+  if (SYNC.estado === 'local') { txt = 'Guardado en este navegador'; cls = ''; }
+  else if (SYNC.estado === 'cargando') { txt = 'Leyendo la base de datos…'; cls = ''; }
+  else if (SYNC.estado === 'error-carga') { txt = 'Sin conexión con la base: los cambios no se guardan en Sheets'; cls = 'mal'; }
+  else if (SYNC.error) { txt = 'Error al guardar, reintentando…'; cls = 'mal'; }
+  else if (SYNC.pendientes.size || SYNC.enVuelo.size) { txt = 'Guardando en Google Sheets…'; cls = 'pend'; }
+  else { txt = `Guardado en Google Sheets${SYNC.ultimo ? ' · ' + hora(SYNC.ultimo) : ''}`; cls = 'ok'; }
+  el.className = 'sync ' + cls;
+  el.innerHTML = SYNC.url ? `<a href="${h(SYNC.url)}" target="_blank" rel="noopener" title="Abrir la hoja de cálculo">${h(txt)}</a>` : h(txt);
+  el.title = SYNC.error || '';
+}
+window.addEventListener('beforeunload', (e) => { if (SYNC.pendientes.size || SYNC.enVuelo.size) { e.preventDefault(); e.returnValue = ''; } });
 
 function descargar(nombre, contenido, tipo) {
   const url = URL.createObjectURL(new Blob([contenido], { type: tipo || 'text/plain;charset=utf-8' }));
@@ -2261,6 +2311,12 @@ function vistaRegistro() {
     ${d.meta.adv.length ? `<tr><td></td><td colspan="7" class="peq t2">${d.meta.adv.map(h).join('<br>')}</td></tr>` : ''}`).join('');
   const C = S.calc;
   return `<h1>Registro y ayuda</h1>
+  <div class="card"><div class="card-h"><h2>Dónde se guardan tus definiciones</h2></div>
+    ${EN_GAS ? `<p style="margin-top:0">Base de datos: ${SYNC.url ? `<a class="link" href="${h(SYNC.url)}" target="_blank" rel="noopener">${h(SYNC.nombre || 'hoja de cálculo')}</a>` : '—'} (en tu Google Drive, privada).</p>
+      <p class="t2 peq">Se guardan parametrización, decisiones del universo, reglas, estados de hallazgos, excepciones, historial y logo. Cada cambio se guarda solo a los pocos segundos; el estado se ve arriba a la derecha. Las tablas de SAP <b>no</b> se guardan: se procesan en el navegador y hay que cargarlas en cada sesión. La hoja "_datos" es la base (no editarla); las demás pestañas de la hoja son una copia legible.</p>
+      <div class="fila"><button class="btn" data-accion="guardar-todo">Guardar todo ahora</button>${SYNC.error ? `<span class="tag crit"><i></i>${h(SYNC.error)}</span>` : ''}</div>`
+    : '<p class="t2" style="margin:0">Esta copia se abrió como archivo local: las definiciones se guardan solo en este navegador. Publicada en Google Apps Script se guardan en una hoja de cálculo de Google.</p>'}
+  </div>
   <div class="card"><div class="card-h"><h2>Logo</h2></div>
     <p class="t2 peq" style="margin-top:0">Cargá el logo de Scienza (PNG, JPG o SVG, hasta 400 KB) para que aparezca en el encabezado. Queda guardado en este navegador.</p>
     <div class="fila"><label class="btn">Elegir imagen<input type="file" class="oculto" id="logoArchivo" accept=".png,.jpg,.jpeg,.svg,.gif,.webp"></label>${leerLocal(CLAVE_LOGO, '') ? '<button class="btn peligro" data-accion="logo-quitar">Quitar logo</button>' : ''}</div>
@@ -2415,7 +2471,7 @@ function render() {
   const app = document.getElementById('app');
   const foco = document.activeElement && document.activeElement.id;
   const pos = foco && document.activeElement.selectionStart;
-  pintarLogo();
+  pintarLogo(); pintarSync();
   app.innerHTML = S.tab === 'inicio' ? vistaInicio() : S.tab === 'cargar' ? vistaCargar() : S.tab === 'parametrizacion' ? vistaParametrizacion() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : S.tab === 'riesgos' ? vistaRiesgos() : S.tab === 'historial' ? vistaHistorial() : vistaRegistro();
   if (S.tab === 'cargar') document.getElementById('mapeo').innerHTML = vistaMapeo();
   if (foco) { const el = document.getElementById(foco); if (el) { el.focus(); try { if (pos != null) el.setSelectionRange(pos, pos); } catch (e) { /* no aplica */ } } }
@@ -2634,7 +2690,9 @@ document.addEventListener('click', (e) => {
   else if (a === 'validar') { validarPendiente(); render(); }
   else if (a === 'confirmar') confirmarPendiente();
   else if (a === 'demo') cargarDemo();
-  else if (a === 'logo-quitar') { try { localStorage.removeItem(CLAVE_LOGO); } catch (e) { /* sin almacenamiento */ } render(); }
+  else if (a === 'recargar') window.location.reload();
+  else if (a === 'guardar-todo') { guardarTodoAhora(); render(); }
+  else if (a === 'logo-quitar') { guardarLocal(CLAVE_LOGO, ''); render(); }
   else if (a === 'demo-archivos') { const d = generarDemo(); descargar('ejemplo_USR02.csv', d.USR02); descargar('ejemplo_AGR_USERS.csv', d.AGR_USERS); for (const f of ['AGR_1252', 'USR21', 'ADRP', 'USR05', 'UST04']) descargar(`ejemplo_${f}.csv`, d[f]); }
   else if (a === 'sel-pagina') { document.querySelectorAll('[data-sel]').forEach((x) => U.uSel.add(x.dataset.sel)); render(); }
   else if (a === 'sel-filtro') { const v = U.uFiltro; S.calc.cuentas.filter((c) => v === 'todas' || (v === 'pendientes' && c.final === 'revisar') || (v === 'incluidos' && c.final === 'incluir') || (v === 'excluidos' && c.final === 'excluir') || (v === 'manuales' && c.manual) || (v === 'sinpais' && c.final === 'incluir' && !c.pais.length))
@@ -2840,11 +2898,49 @@ async function cargarDemo() {
   recalcular();
 }
 
-S.riesgos = cargarRiesgos();
-if (!window.Papa || !window.XLSX) {
-  document.getElementById('app').innerHTML = '<div class="aviso crit"><b>No se pudieron cargar las librerías de lectura</b>Esta página necesita acceso a cdnjs.cloudflare.com para leer CSV y Excel. Verificá la conexión o el proxy.</div>';
+// Estado guardado (parametrización, universo, reglas): se vuelve a leer cuando llega la base de Sheets.
+function inicializarEstado() {
+  S.conf = Object.assign({ decisiones: {}, excluirTecnicas: true, umbralRoles: 25, diasSinAcceso: 90 }, leerLocal(CLAVE_CONF, {}));
+  delete S.conf.reglas;
+  const x = cargarParam(); S.param = x.p; S.paramOrigen = x.origen;
+  S.riesgos = cargarRiesgos();
+}
+function arrancar() {
+  if (!window.Papa || !window.XLSX) {
+    document.getElementById('app').innerHTML = '<div class="aviso crit"><b>No se pudieron cargar las librerías de lectura</b>Esta página necesita acceso a cdnjs.cloudflare.com para leer CSV y Excel. Verificá la conexión o el proxy.</div>';
+  } else {
+    recalcular();
+  }
+  pintarSync();
+}
+function iniciarConBase(r) {
+  Object.assign(SYNC, { estado: 'ok', url: r.url, nombre: r.nombre, ultimo: Object.values(r.actualizado || {}).sort().pop() || '' });
+  Object.assign(ALMACEN, r.datos || {});
+  // Primera vez: lo que estaba guardado en este navegador se sube a la base.
+  const migradas = [];
+  for (const k of [CLAVE_CONF, CLAVE_PARAM, CLAVE_RIESGOS, CLAVE_HISTORIAL, CLAVE_LOGO]) {
+    let local = null;
+    try { local = localStorage.getItem(k); } catch (e) { local = null; }
+    if (!ALMACEN[k] && local) { ALMACEN[k] = local; programarGuardado(k, 300); migradas.push(k); }
+  }
+  inicializarEstado();
+  arrancar();
+  if (migradas.length) setTimeout(() => alert(`Se copiaron a la base de Google Sheets las definiciones que estaban guardadas en este navegador (${migradas.length} bloque(s)).`), 200);
+}
+function errorBase(e) {
+  SYNC.estado = 'error-carga'; SYNC.error = (e && e.message) || String(e);
+  for (const k of [CLAVE_CONF, CLAVE_PARAM, CLAVE_RIESGOS, CLAVE_HISTORIAL, CLAVE_LOGO]) { try { const v = localStorage.getItem(k); if (v) ALMACEN[k] = v; } catch (x) { /* sin almacenamiento */ } }
+  inicializarEstado();
+  arrancar();
+  document.getElementById('app').insertAdjacentHTML('afterbegin', `<div class="aviso crit"><b>No se pudo leer la base de datos de Google Sheets</b>${h(SYNC.error)}<br>Se muestra la última copia de este navegador y los cambios <b>no</b> se guardan en Sheets. <button class="btn mini" data-accion="recargar">Reintentar</button></div>`);
+}
+if (EN_GAS) {
+  pintarSync();
+  document.getElementById('app').innerHTML = '<div class="aviso"><b>Leyendo la base de datos…</b>Abriendo la hoja de cálculo con tus definiciones guardadas.</div>';
+  google.script.run.withSuccessHandler(iniciarConBase).withFailureHandler(errorBase).cargarTodo();
 } else {
-  render();
+  S.riesgos = cargarRiesgos();
+  arrancar();
 }
 window.__listo = true;
 </script>
