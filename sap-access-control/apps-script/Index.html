@@ -1189,6 +1189,29 @@ function pie(lista, pg, clave) {
 // ---------------------------------------------------------- vista: cargar
 const ETIQUETAS_CAMPO = { BUKRS: 'la sociedad', VKORG: 'la organización de ventas', KOKRS: 'la sociedad CO', EKORG: 'la organización de compras', KKBER: 'el área de control de créditos', VKBUR: 'la oficina de ventas', VKGRP: 'el grupo de vendedores', WERKS: 'el centro', SWERK: 'el centro de mantenimiento', BWKEY: 'el ámbito de valoración', IWERK: 'el centro de planificación' };
 const GRUPOS = [['base', 'Necesarios'], ['pistas', 'Pistas de país'], ['roles', 'Estructura de roles'], ['permisos', 'Transacciones y autorizaciones'], ['fiori', 'Fiori'], ['uso', 'Evidencia de uso (opcional)'], ['complementos', 'Complementos']];
+// Qué se pierde si falta cada tabla (las de evidencia de uso y la lista de referencia son opcionales).
+const IMPACTO_FALTANTE = {
+  USR02: 'Sin cuentas no hay análisis: es obligatoria.', AGR_USERS: 'Sin asignaciones de roles no hay análisis: es obligatoria.',
+  AGR_1252: 'Faltan los niveles organizativos de los roles: la sugerencia de país pierde su mejor pista.', USR05: 'Faltan los parámetros de usuario (pista de país).',
+  UST04: 'No se detectan perfiles directos como SAP_ALL o SAP_NEW.', USR21: 'No se ven los nombres de las personas (junto con ADRP).', ADRP: 'No se ven los nombres de las personas (junto con USR21).',
+  AGR_DEFINE: 'Sin descripción de roles, roles derivados ni rol padre.', AGR_TEXTS: 'Sin textos de los roles.', AGR_AGRS: 'No se resuelven los roles compuestos.',
+  AGR_FLAGS: 'No se detectan roles marcados como obsoletos o bloqueados.', AGR_PROF: 'Los perfiles generados se distinguen solo por el nombre (menos preciso).',
+  USREFUS: 'No se detectan usuarios de referencia (que heredan permisos).', AGR_TCODES: 'Sin el menú de transacciones de los roles.',
+  AGR_1251: 'Sin autorizaciones: no se pueden evaluar riesgos ni SoD.', TSTCT: 'Las transacciones se ven sin descripción.',
+  AGR_BUFFI: 'Sin catálogos ni grupos Fiori por rol.', AGR_HIER: 'Los catálogos Fiori se ven sin título.', PB_C_CHIP: 'No se ven las apps de cada catálogo Fiori.',
+  USOBHASH: 'Los servicios Fiori/OData (S_SERVICE) se ven como códigos.',
+};
+function controlArchivos() {
+  if (!Object.values(S.datos).some(Boolean)) return '';
+  const faltan = Object.keys(IMPACTO_FALTANTE).filter((f) => !S.datos[f]);
+  const avisos = [];
+  if (S.datos.PB_C_CHIP && (S.datos.PB_C_CHIP.meta.partes || 1) < 2) avisos.push('PB_C_CHIP se cargó en una sola parte: si no sumaste /UI2/PB_C_CHIPM, los catálogos propios (Z) van a quedar sin apps.');
+  for (const f of ['AGR_1251', 'AGR_HIER']) if (S.datos[f] && (S.datos[f].meta.partes || 1) < 2 && /_\d+\.\w+$/.test(S.datos[f].meta.archivo)) avisos.push(`${f}: se cargó un solo archivo y su nombre indica que es una parte (${S.datos[f].meta.archivo}). Si la exportaste en varias partes, cargalas todas juntas.`);
+  return `<div class="card" style="margin-top:12px"><div class="card-h"><h2>Control de archivos</h2>${faltan.length ? `<span class="tag warn"><i></i>Faltan ${faltan.length} de ${Object.keys(IMPACTO_FALTANTE).length}</span>` : '<span class="tag ok"><i></i>Están todas las tablas</span>'}</div>
+    ${faltan.length ? `<table class="t"><thead><tr><th>Tabla que falta</th><th>Qué se pierde</th></tr></thead><tbody>${faltan.map((f) => `<tr><td class="mono">${h(f)}${FUENTES[f].obligatoria ? ' <span class="tag crit"><i></i>Obligatoria</span>' : ''}</td><td class="peq">${h(IMPACTO_FALTANTE[f])}</td></tr>`).join('')}</tbody></table>` : '<p class="t2 peq" style="margin:0">Se cargaron las 20 tablas del análisis. La evidencia de uso y la lista de referencia son opcionales.</p>'}
+    ${avisos.map((a) => `<div class="aviso warn" style="margin:10px 0 0">${h(a)}</div>`).join('')}
+  </div>`;
+}
 function vistaCargar() {
   const zona = ([f, def]) => {
     const d = S.datos[f];
@@ -1222,6 +1245,7 @@ function vistaCargar() {
   </div>
   ${S.cargando ? `<div class="aviso"><b>Cargando…</b>${h(S.cargando)} Las tablas grandes pueden tardar unos segundos.</div>` : ''}
   ${lote}
+  ${controlArchivos()}
   ${zonas}
   <div id="mapeo"></div>
   <div class="card" style="margin-top:16px">
