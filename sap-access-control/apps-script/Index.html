@@ -10,44 +10,43 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root {
-  color-scheme: light dark;
-  --surface: #fcfcfb; --surface-2: #f1f1ee; --page: #f6f7f5;
-  --text: #0b0b0b; --text-2: #52514e; --muted: #6f6e69;
-  --grid: #e1e0d9; --base: #c3c2b7; --border: rgba(11,11,11,.1);
-  --accent: #2a78d6; --accent-soft: rgba(42,120,214,.1);
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
-  --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b;
-  --uy: #2a78d6; --cl: #eb6834; --ar: #8a8983;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --surface: #1a1a19; --surface-2: #232321; --page: #121416;
-    --text: #fff; --text-2: #c3c2b7; --muted: #a09f98;
-    --grid: #2c2c2a; --base: #383835; --border: rgba(255,255,255,.1);
-    --accent: #3987e5; --accent-soft: rgba(57,135,229,.16);
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
-    --uy: #3987e5; --cl: #d95926; --ar: #8a8983;
-  }
-}
-:root[data-theme="dark"] {
-  --surface: #1a1a19; --surface-2: #232321; --page: #121416;
-  --text: #fff; --text-2: #c3c2b7; --muted: #a09f98;
-  --grid: #2c2c2a; --base: #383835; --border: rgba(255,255,255,.1);
-  --accent: #3987e5; --accent-soft: rgba(57,135,229,.16);
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
-  --uy: #3987e5; --cl: #d95926; --ar: #8a8983;
+  /* Tema claro con la identidad de Scienza (bordó). */
+  color-scheme: light;
+  --brand: #7b1d3a; --brand-2: #5a1229; --brand-soft: rgba(123,29,58,.09);
+  --surface: #ffffff; --surface-2: #f5eff1; --page: #f8f5f6;
+  --text: #1d1416; --text-2: #574a4e; --muted: #7a6d71;
+  --grid: #eee6e9; --base: #d2c5ca; --border: rgba(90,18,41,.12);
+  --accent: #7b1d3a; --accent-soft: rgba(123,29,58,.09);
+  --s1: #7b1d3a; --s2: #c58b2a; --s3: #3f7f6e; --s4: #e0a100;
+  --good: #2e8b3a; --warn: #f0a81c; --serious: #e07a4f; --crit: #d03b3b;
+  --uy: #7b1d3a; --cl: #c58b2a; --ar: #8a8983;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 button, input, select { font: inherit; color: inherit; }
-header.app { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; position: sticky; top: 0; z-index: 5; }
+header.app { background: linear-gradient(90deg, var(--brand-2), var(--brand)); color: #fff; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 8px rgba(90,18,41,.25); }
+header.app .marca { display: flex; align-items: center; gap: 12px; }
+header.app .marca img { max-height: 36px; max-width: 150px; background: #fff; border-radius: 6px; padding: 3px 6px; }
 header.app .marca b { font-size: 15px; display: block; }
-header.app .marca span { font-size: 12px; color: var(--muted); }
+header.app .marca span { font-size: 12px; color: rgba(255,255,255,.8); }
+header.app .separador { width: 1px; height: 30px; background: rgba(255,255,255,.3); }
 nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
-nav.tabs button { border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; cursor: pointer; color: var(--text-2); }
-nav.tabs button.activo { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-nav.tabs button .paso { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; background: var(--surface-2); margin-right: 6px; }
-nav.tabs button.activo .paso { background: var(--accent); color: #fff; }
+nav.tabs button { border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; cursor: pointer; color: rgba(255,255,255,.88); }
+nav.tabs button:hover { background: rgba(255,255,255,.12); }
+nav.tabs button.activo { background: #fff; color: var(--brand); font-weight: 600; }
+nav.tabs button .paso { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; background: rgba(255,255,255,.2); margin-right: 6px; }
+nav.tabs button.activo .paso { background: var(--brand); color: #fff; }
+h1 { color: var(--brand-2); }
+.stat { border-top: 3px solid var(--brand); }
+.stat.alerta { border-top-color: var(--crit); } .stat.atencion { border-top-color: var(--warn); } .stat.bien { border-top-color: var(--good); }
+.bienvenida { background: linear-gradient(120deg, var(--brand-2), var(--brand)); color: #fff; border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+.bienvenida h1 { color: #fff; font-size: 22px; } .bienvenida p { margin: 4px 0 0; color: rgba(255,255,255,.88); }
+.pasos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pasos li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.pasos .ic { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); }
+.pasos li.hecho .ic { background: var(--good); color: #fff; } .pasos li.parcial .ic { background: var(--warn); color: #fff; }
+.ranking { list-style: none; margin: 0; padding: 0; } .ranking li { display: grid; grid-template-columns: 1fr 120px 40px; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--grid); font-size: 13px; }
+.ranking .b { height: 8px; border-radius: 4px; background: var(--brand); }
 main { max-width: 1400px; margin: 0 auto; padding: 20px 16px 60px; }
 h1 { font-size: 20px; margin: 0 0 4px; }
 h2 { font-size: 15px; margin: 0 0 10px; }
@@ -119,8 +118,9 @@ details summary { cursor: pointer; }
 </head>
 <body>
 <header class="app">
-  <div class="marca"><b>SAP Access Control</b><span>Scienza · Uruguay y Chile</span></div>
+  <div class="marca"><span id="logo"></span><span class="separador"></span><div><b>SAP Access Control</b><span>Uruguay y Chile</span></div></div>
   <nav class="tabs" id="tabs">
+    <button data-tab="inicio"><span class="paso">⌂</span>Inicio</button>
     <button data-tab="cargar"><span class="paso">1</span>Cargar archivos</button>
     <button data-tab="parametrizacion"><span class="paso">2</span>Parametrización</button>
     <button data-tab="universo"><span class="paso">3</span>Definir universo</button>
@@ -812,7 +812,7 @@ function procesar(fuente, tabla, mapeo) {
 // -------------------------------------------------------------------- estado
 const CLAVE_CONF = 'sapac.scienza.universo.v1';
 const S = {
-  tab: 'cargar',
+  tab: 'inicio',
   fechaRef: hoyISO(),
   demo: false,
   datos: { AGR_BUFFI: null, AGR_HIER: null, PB_C_CHIP: null, USOBHASH: null, USO: null, AGR_TCODES: null, TSTCT: null, AGR_1251: null, USR02: null, AGR_USERS: null, AGR_1252: null, USR05: null, REF: null, AGR_DEFINE: null, AGR_TEXTS: null, AGR_AGRS: null, AGR_FLAGS: null, AGR_PROF: null, UST04: null, USR21: null, ADRP: null, USREFUS: null }, // {regs, meta}
@@ -2134,11 +2134,101 @@ function vistaAnalisis() {
 }
 
 // -------------------------------------------------------- vista: registro
+// ------------------------------------------------------------------ inicio
+// Logo: por defecto la marca en texto; se puede cargar la imagen oficial (queda en este navegador).
+const CLAVE_LOGO = 'sapac.scienza.logo.v1';
+function pintarLogo() {
+  const el = document.getElementById('logo');
+  if (!el) return;
+  const img = leerLocal(CLAVE_LOGO, '');
+  const html = img ? `<img src="${h(img)}" alt="Scienza">` : '<b style="font-size:20px;letter-spacing:.5px;font-weight:700">scienza</b>';
+  if (el.innerHTML !== html) el.innerHTML = html;
+}
+function cargarLogo(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type)) return alert('Elegí una imagen (PNG, JPG o SVG).');
+  if (file.size > 400000) return alert('La imagen supera 400 KB: usá una versión más liviana del logo.');
+  const fr = new FileReader();
+  fr.onload = () => { guardarLocal(CLAVE_LOGO, fr.result); render(); };
+  fr.readAsDataURL(file);
+}
+function statIr(e, v, d, tab, tono) {
+  return `<button class="stat ${tono || ''}" data-tab-ir="${tab}"><div class="e">${h(e)}</div><div class="v">${typeof v === 'number' ? n(v) : h(v)}</div>${d ? `<div class="d">${h(d)}</div>` : ''}</button>`;
+}
+function vistaInicio() {
+  const C = S.calc, R = S.riesgos;
+  const cargadas = Object.values(S.datos).filter(Boolean).length, totalF = Object.keys(FUENTES).length;
+  const enUso = C ? C.catalogo.filter((x) => x.usuarios > 0) : [];
+  const confirmadas = enUso.filter((x) => x.def).length;
+  const revisar = C ? C.cuentas.filter((c) => c.final === 'revisar').length : 0;
+  const hs = C && C.riesgos ? C.riesgos.hallazgos : [];
+  const sinTratar = hs.filter((x) => ['identificado', 'analisis'].includes(estadoHallazgo(x).estado)).length;
+  const reglasConf = R.reglas.filter((r) => r.estado === 'confirmada').length;
+  const fotos = leerHistorial().length;
+  const paso = (estado, titulo, detalle, tab) => `<li class="${estado}"><span class="ic">${estado === 'hecho' ? '✓' : estado === 'parcial' ? '…' : '·'}</span><div style="flex:1"><b>${h(titulo)}</b><div class="peq t2">${h(detalle)}</div></div><button class="btn mini" data-tab-ir="${tab}">Ir</button></li>`;
+  const pasos = `<div class="card" style="margin-top:16px"><h2>Avance del trabajo</h2><ul class="pasos">
+    ${paso(S.datos.USR02 && S.datos.AGR_USERS ? (cargadas >= 20 ? 'hecho' : 'parcial') : '', '1. Cargar archivos', `${cargadas} de ${totalF} fuentes cargadas en esta sesión`, 'cargar')}
+    ${paso(!C ? '' : enUso.length && confirmadas === enUso.length ? 'hecho' : confirmadas ? 'parcial' : '', '2. Parametrización de países', C ? `${n(confirmadas)} de ${n(enUso.length)} datos en uso confirmados` : 'Requiere USR02 y AGR_USERS', 'parametrizacion')}
+    ${paso(!C ? '' : revisar === 0 && C.universo.length ? 'hecho' : C.universo.length ? 'parcial' : '', '3. Definir universo', C ? `${n(C.universo.length)} cuentas incluidas · ${n(revisar)} por revisar` : 'Requiere la carga', 'universo')}
+    ${paso(C && C.hayTx ? 'hecho' : '', '4. Análisis de roles y accesos', C && C.hayTx ? `${n(C.roles.length)} roles en el universo` : 'Requiere AGR_TCODES y AGR_1251', 'analisis')}
+    ${paso(!hs.length ? '' : sinTratar === 0 && reglasConf === R.reglas.length ? 'hecho' : 'parcial', '5. Riesgos y SoD', `${reglasConf} de ${R.reglas.length} reglas confirmadas · ${n(sinTratar)} hallazgos sin tratar`, 'riesgos')}
+    ${paso(fotos ? 'hecho' : '', '6. Historial e informe', fotos ? `${fotos} extracción(es) guardadas en el historial` : 'Todavía no se guardó ninguna extracción', 'historial')}
+  </ul></div>`;
+  const bienvenida = `<div class="bienvenida"><h1>SAP Access Control · Scienza</h1><p>Línea base de accesos de Uruguay y Chile sobre SAP S/4HANA${C ? ` · extracción del ${fmtFecha(S.fechaRef)}` : ''}.</p></div>`;
+  if (!C) return `${bienvenida}
+    <div class="aviso"><b>Todavía no hay datos cargados</b>Empezá por el paso 1: cargá todas las exportaciones de SE16N juntas. Las decisiones, la parametrización y las reglas que ya definiste están guardadas en este navegador.</div>
+    <div class="fila" style="margin-bottom:16px"><button class="btn prim" data-tab-ir="cargar">Cargar archivos</button><button class="btn" data-accion="demo">Ver con datos ficticios</button></div>
+    ${pasos}`;
+  const u = C.universo;
+  const uy = u.filter((c) => c.pais.includes('UY') && !c.pais.includes('CL')).length, cl = u.filter((c) => c.pais.includes('CL') && !c.pais.includes('UY')).length, ambos = u.filter((c) => c.pais.length > 1).length;
+  const bloq = u.filter((c) => c.bloqueada).length, util = u.filter((c) => c.utilizable).length;
+  const sinAcc = u.filter((c) => c.utilizable && c.diasSinAcceso !== null && c.diasSinAcceso > S.conf.diasSinAcceso).length;
+  const critico = u.filter((c) => c.critico).length, conTxCrit = u.filter((c) => c.txCriticas.length).length;
+  const alta = hs.filter((x) => x.r.severidad === 'alta'), media = hs.filter((x) => x.r.severidad === 'media').length, baja = hs.filter((x) => x.r.severidad === 'baja').length;
+  const cuentasAlta = new Set(alta.map((x) => x.c.bname)).size;
+  const vencidas = hs.filter((x) => estadoExcepcion(estadoHallazgo(x)) === 'vencida').length;
+  const porRegla = R.reglas.map((r) => [r, new Set(hs.filter((x) => x.r.id === r.id).map((x) => x.c.bname)).size]).filter(([, k]) => k).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const porCuenta = {}; alta.forEach((x) => (porCuenta[x.c.bname] = (porCuenta[x.c.bname] || 0) + 1));
+  const topCuentas = Object.entries(porCuenta).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const max1 = Math.max(1, ...porRegla.map((x) => x[1])), max2 = Math.max(1, ...topCuentas.map((x) => x[1]));
+  return `${S.demo ? '<div class="banda-demo"><b>Datos de ejemplo ficticios.</b> <span class="t2">No provienen de SAP.</span></div>' : ''}
+  ${bienvenida}
+  <h2>Universo</h2>
+  <div class="grid g6">
+    ${statIr('Cuentas en SAP', C.cuentas.length, 'todas las de USR02', 'universo')}
+    ${statIr('En el universo', u.length, `UY ${n(uy + ambos)} · CL ${n(cl + ambos)}`, 'universo')}
+    ${statIr('Por revisar', revisar, 'cuentas sin decisión', 'universo', revisar ? 'atencion' : 'bien')}
+    ${statIr('Utilizables', util, `${n(bloq)} bloqueada(s)`, 'analisis')}
+    ${statIr('Sin acceso reciente', sinAcc, `más de ${S.conf.diasSinAcceso} días`, 'analisis', sinAcc ? 'atencion' : '')}
+    ${statIr('Roles en uso', C.roles.length, 'asignados al universo', 'analisis')}
+  </div>
+  <div class="card" style="margin-top:12px">${barra([['Solo Uruguay', uy, 'var(--uy)'], ['Solo Chile', cl, 'var(--cl)'], ['Ambos países', ambos, 'var(--s3)']])}</div>
+  <h2>Riesgos</h2>
+  <div class="grid g6">
+    ${statIr('Hallazgos', hs.length, 'regla × cuenta', 'riesgos')}
+    ${statIr('Cuentas con riesgo alto', cuentasAlta, `${n(alta.length)} hallazgo(s) de severidad alta`, 'riesgos', cuentasAlta ? 'alerta' : 'bien')}
+    ${statIr('Sin tratar', sinTratar, 'identificados o en análisis', 'riesgos', sinTratar ? 'atencion' : 'bien')}
+    ${statIr('SAP_ALL / SAP_NEW', critico, 'perfil asignado directo', 'analisis', critico ? 'alerta' : 'bien')}
+    ${statIr('Con transacciones críticas', conTxCrit, 'administración y desarrollo', 'analisis', conTxCrit ? 'atencion' : '')}
+    ${statIr('Excepciones vencidas', vencidas, 'requieren renovación', 'riesgos', vencidas ? 'alerta' : '')}
+  </div>
+  ${hs.length ? `<div class="grid g2" style="margin-top:12px">
+    <div class="card"><h2>Hallazgos por severidad</h2>${barra([['Alta', alta.length, 'var(--crit)'], ['Media', media, 'var(--serious)'], ['Baja', baja, 'var(--base)']])}
+      <h3>Reglas con más cuentas</h3><ul class="ranking">${porRegla.map(([r, k]) => `<li><span>${h(r.nombre)}</span><span><span class="b" style="display:block;width:${k / max1 * 100}%"></span></span><span class="num">${n(k)}</span></li>`).join('')}</ul></div>
+    <div class="card"><h2>Cuentas con más hallazgos de severidad alta</h2>${topCuentas.length ? `<ul class="ranking">${topCuentas.map(([b, k]) => { const c = C.porNombre[b] || {}; return `<li><span><button class="link mono" data-ficha="${h(b)}">${h(b)}</button> <span class="peq t2">${h(c.nombre || '')}</span></span><span><span class="b" style="display:block;width:${k / max2 * 100}%"></span></span><span class="num">${n(k)}</span></li>`; }).join('')}</ul>` : '<p class="t2">Sin hallazgos de severidad alta.</p>'}</div>
+  </div>` : ''}
+  ${pasos}`;
+}
+
 function vistaRegistro() {
   const filas = Object.entries(S.datos).filter(([, d]) => d).map(([f, d]) => `<tr><td>${h(FUENTES[f].titulo)}</td><td>${h(d.meta.archivo)}</td><td class="mono peq">${h(d.meta.sha)}</td><td class="num">${n(d.meta.leidas)}</td><td class="num">${n(d.regs.length)}</td><td class="num">${n(d.meta.rechazadas)}</td><td class="num">${n(d.meta.duplicadas)}</td><td>${h(d.meta.cargado)}</td></tr>
     ${d.meta.adv.length ? `<tr><td></td><td colspan="7" class="peq t2">${d.meta.adv.map(h).join('<br>')}</td></tr>` : ''}`).join('');
   const C = S.calc;
   return `<h1>Registro y ayuda</h1>
+  <div class="card"><div class="card-h"><h2>Logo</h2></div>
+    <p class="t2 peq" style="margin-top:0">Cargá el logo de Scienza (PNG, JPG o SVG, hasta 400 KB) para que aparezca en el encabezado. Queda guardado en este navegador.</p>
+    <div class="fila"><label class="btn">Elegir imagen<input type="file" class="oculto" id="logoArchivo" accept="image/*"></label>${leerLocal(CLAVE_LOGO, '') ? '<button class="btn peligro" data-accion="logo-quitar">Quitar logo</button>' : ''}</div>
+  </div>
   <div class="card"><h2>Archivos cargados en esta sesión</h2>
     ${filas ? `<div class="tabla-wrap"><table class="t"><thead><tr><th>Fuente</th><th>Archivo</th><th>SHA-256</th><th class="num">Leídas</th><th class="num">Aceptadas</th><th class="num">Rechazadas</th><th class="num">Duplicadas</th><th>Cargado</th></tr></thead><tbody>${filas}</tbody></table></div>` : '<p class="t2">Nada cargado todavía.</p>'}
     ${C && C.huerfanas.length ? `<div class="aviso warn" style="margin-top:12px"><b>${n(C.huerfanas.length)} usuario(s) de AGR_USERS no están en USR02</b>Puede indicar extracciones de momentos distintos o un filtro en USR02: ${h(C.huerfanas.slice(0, 30).join(', '))}${C.huerfanas.length > 30 ? '…' : ''}</div>` : ''}
@@ -2289,7 +2379,8 @@ function render() {
   const app = document.getElementById('app');
   const foco = document.activeElement && document.activeElement.id;
   const pos = foco && document.activeElement.selectionStart;
-  app.innerHTML = S.tab === 'cargar' ? vistaCargar() : S.tab === 'parametrizacion' ? vistaParametrizacion() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : S.tab === 'riesgos' ? vistaRiesgos() : S.tab === 'historial' ? vistaHistorial() : vistaRegistro();
+  pintarLogo();
+  app.innerHTML = S.tab === 'inicio' ? vistaInicio() : S.tab === 'cargar' ? vistaCargar() : S.tab === 'parametrizacion' ? vistaParametrizacion() : S.tab === 'universo' ? vistaUniverso() : S.tab === 'analisis' ? vistaAnalisis() : S.tab === 'riesgos' ? vistaRiesgos() : S.tab === 'historial' ? vistaHistorial() : vistaRegistro();
   if (S.tab === 'cargar') document.getElementById('mapeo').innerHTML = vistaMapeo();
   if (foco) { const el = document.getElementById(foco); if (el) { el.focus(); try { if (pos != null) el.setSelectionRange(pos, pos); } catch (e) { /* no aplica */ } } }
 }
@@ -2507,6 +2598,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'validar') { validarPendiente(); render(); }
   else if (a === 'confirmar') confirmarPendiente();
   else if (a === 'demo') cargarDemo();
+  else if (a === 'logo-quitar') { try { localStorage.removeItem(CLAVE_LOGO); } catch (e) { /* sin almacenamiento */ } render(); }
   else if (a === 'demo-archivos') { const d = generarDemo(); descargar('ejemplo_USR02.csv', d.USR02); descargar('ejemplo_AGR_USERS.csv', d.AGR_USERS); for (const f of ['AGR_1252', 'USR21', 'ADRP', 'USR05', 'UST04']) descargar(`ejemplo_${f}.csv`, d[f]); }
   else if (a === 'sel-pagina') { document.querySelectorAll('[data-sel]').forEach((x) => U.uSel.add(x.dataset.sel)); render(); }
   else if (a === 'sel-filtro') { const v = U.uFiltro; S.calc.cuentas.filter((c) => v === 'todas' || (v === 'pendientes' && c.final === 'revisar') || (v === 'incluidos' && c.final === 'incluir') || (v === 'excluidos' && c.final === 'excluir') || (v === 'manuales' && c.manual) || (v === 'sinpais' && c.final === 'incluir' && !c.pais.length))
@@ -2532,6 +2624,7 @@ document.addEventListener('change', async (e) => {
   const t = e.target, U = S.ui;
   if (t.dataset.archivo) { await elegirArchivo(t.dataset.archivo, t.files[0], !!t.dataset.agregar); t.value = ''; return; }
   if (t.id === 'cargaMultiple') { await cargarVarios([...t.files]); t.value = ''; return; }
+  if (t.id === 'logoArchivo') { cargarLogo(t.files[0]); t.value = ''; return; }
   if (t.id === 'fechaRef') { S.fechaRef = t.value || hoyISO(); return recalcular(); }
   if (t.id === 'mapeo-fuente') { const P = S.pendiente; P.fuente = t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
   if (t.id === 'mapeo-hoja') { const P = S.pendiente; P.hoja = +t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
