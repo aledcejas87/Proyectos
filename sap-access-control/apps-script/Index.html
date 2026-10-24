@@ -2239,7 +2239,7 @@ function vistaRegistro() {
   return `<h1>Registro y ayuda</h1>
   <div class="card"><div class="card-h"><h2>Logo</h2></div>
     <p class="t2 peq" style="margin-top:0">Cargá el logo de Scienza (PNG, JPG o SVG, hasta 400 KB) para que aparezca en el encabezado. Queda guardado en este navegador.</p>
-    <div class="fila"><label class="btn">Elegir imagen<input type="file" class="oculto" id="logoArchivo" accept="image/*"></label>${leerLocal(CLAVE_LOGO, '') ? '<button class="btn peligro" data-accion="logo-quitar">Quitar logo</button>' : ''}</div>
+    <div class="fila"><label class="btn">Elegir imagen<input type="file" class="oculto" id="logoArchivo" accept=".png,.jpg,.jpeg,.svg,.gif,.webp"></label>${leerLocal(CLAVE_LOGO, '') ? '<button class="btn peligro" data-accion="logo-quitar">Quitar logo</button>' : ''}</div>
   </div>
   <div class="card"><h2>Archivos cargados en esta sesión</h2>
     ${filas ? `<div class="tabla-wrap"><table class="t"><thead><tr><th>Fuente</th><th>Archivo</th><th>SHA-256</th><th class="num">Leídas</th><th class="num">Aceptadas</th><th class="num">Rechazadas</th><th class="num">Duplicadas</th><th>Cargado</th></tr></thead><tbody>${filas}</tbody></table></div>` : '<p class="t2">Nada cargado todavía.</p>'}
