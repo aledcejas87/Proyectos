@@ -2262,7 +2262,7 @@ function vistaInicio() {
   </ul></div>`;
   const bienvenida = `<div class="bienvenida"><h1>SAP Access Control · Scienza</h1><p>Línea base de accesos de Uruguay y Chile sobre SAP S/4HANA${C ? ` · extracción del ${fmtFecha(S.fechaRef)}` : ''}.</p></div>`;
   if (!C) return `${bienvenida}
-    <div class="aviso"><b>Todavía no hay datos cargados</b>Empezá por el paso 1: cargá todas las exportaciones de SE16N juntas. Las decisiones, la parametrización y las reglas que ya definiste están guardadas en este navegador.</div>
+    <div class="aviso"><b>Todavía no hay datos cargados</b>Empezá por el paso 1: cargá todas las exportaciones de SE16N juntas. Las decisiones, la parametrización y las reglas que ya definiste están guardadas ${EN_GAS ? 'en tu hoja de Google Sheets' : 'en este navegador'}.</div>
     <div class="fila" style="margin-bottom:16px"><button class="btn prim" data-tab-ir="cargar">Cargar archivos</button><button class="btn" data-accion="demo">Ver con datos ficticios</button></div>
     ${pasos}`;
   const u = C.universo;
