@@ -922,7 +922,7 @@ function guardarParam() {
 const CAMPOS_SOCIEDAD = new Set(['BUKRS', 'VKORG', 'KOKRS', 'EKORG', 'KKBER', 'VKBUR', 'VKGRP', 'BUK', 'VKO', 'CAC', 'EKO', 'KOK', '8BU']);
 const CAMPOS_CENTRO = new Set(['WERKS', 'SWERK', 'BWKEY', 'IWERK', 'WRK']);
 const DESC_CAMPO = { BUKRS: 'Sociedad', VKORG: 'Org. de ventas', KOKRS: 'Sociedad CO', EKORG: 'Org. de compras', KKBER: 'Área de control de créditos', VKBUR: 'Oficina de ventas', VKGRP: 'Grupo de vendedores', WERKS: 'Centro', SWERK: 'Centro de mantenimiento', BWKEY: 'Ámbito de valoración', IWERK: 'Centro de planificación', VSTEL: 'Puesto de expedición', LGORT: 'Almacén', LGNUM: 'Número de almacén', EKGRP: 'Grupo de compras', VTWEG: 'Canal de distribución', SPART: 'Sector', GSBER: 'División', PRCTR: 'Centro de beneficio', ...PARAMS_ORG };
-const TIPOS_DEF = { org: 'Nivel org. de rol (AGR_1252)', param: 'Parámetro de usuario (USR05)', token: 'Parte del nombre de rol', contiene: 'Nombre de rol contiene', clase: 'Grupo de usuarios (CLASS)' };
+const TIPOS_DEF = { org: 'Nivel org. de rol (AGR_1252)', param: 'Parámetro de usuario (USR05)', token: 'Parte del nombre de rol', contiene: 'Nombre de rol contiene', clase: 'Grupo de usuarios (CLASS)', rol: 'Rol puntual (excepción)' };
 const claveRegla = (tipo, campo, valor) => `${tipo}|${campo || ''}|${valor}`;
 
 // Propuestas para confirmar. Las "respuestas" son las del responsable del 23/10/2026.
@@ -1072,6 +1072,7 @@ function calcular() {
   for (const d of Object.values(P.definiciones)) {
     const x = item(d.tipo, d.campo, d.valor);
     if (d.tipo === 'contiene') for (const agr of Object.keys(usuariosPorRol)) if (agr.includes(d.valor)) sumarRol(x, agr);
+    if (d.tipo === 'rol') sumarRol(x, d.valor);
   }
   const catalogo = Object.values(cat).map((x) => ({ ...x, roles: x.roles.size, usuarios: x.usuarios.size, ejemplos: [...x.roles].slice(0, 3), listaRoles: x.roles, prop: propuesta(x.tipo, x.campo, x.valor), def: P.definiciones[x.k] || null }))
     .sort((a, b) => b.usuarios - a.usuarios || b.roles - a.roles || a.k.localeCompare(b.k));
@@ -1080,9 +1081,10 @@ function calcular() {
 
   // Reglas efectivas: solo definiciones confirmadas (o propuestas, en modo provisorio/demo).
   const usarProp = P.usarPropuestas || S.demo;
-  const rTok = {}, rCont = [], rClase = {}, rOrg = {}, rParam = {};
+  const rTok = {}, rCont = [], rClase = {}, rOrg = {}, rParam = {}, rRol = {};
   for (const x of catalogo) {
     const pais = x.def ? x.def.pais : (usarProp && x.prop ? x.prop.pais : '');
+    if (x.tipo === 'rol' && pais) { rRol[x.valor] = pais; continue; } // la excepción por rol admite "sin país"
     if (!pais || pais === 'NEUTRO') continue;
     if (x.tipo === 'token') rTok[x.valor] = pais;
     else if (x.tipo === 'contiene') rCont.push({ valor: x.valor, pais });
@@ -1098,6 +1100,8 @@ function calcular() {
   const cacheNombre = {};
   const paisNombreRol = (agr) => {
     if (agr in cacheNombre) return cacheNombre[agr];
+    const ex = paisDe(catPorK[claveRegla('rol', '', agr)]);
+    if (ex) return (cacheNombre[agr] = ex === 'NEUTRO' ? '' : ex);
     const ps = new Set();
     for (const t of tokensDe(agr)) { const p = paisDe(catPorK[claveRegla('token', '', t)]); if (p && p !== 'NEUTRO') ps.add(p); }
     for (const y of contieneP) if (agr.includes(y.valor)) ps.add(paisDe(y));
@@ -1116,6 +1120,8 @@ function calcular() {
     x.acompanan = Object.entries(otros).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([v, k]) => { const y = catPorK[claveRegla('org', x.campo, v)]; return { v, k, pais: paisDe(y) }; });
   }
   for (const x of catalogo) delete x.listaRoles;
+  // Países que indican los niveles organizativos de un rol (confirmados o propuestos), para revisar excepciones.
+  const paisOrgRol = (agr) => [...new Set((orgPorRol[agr] || []).map((o) => paisDe(catPorK[claveRegla('org', o.varbl, o.low)])).filter((p) => p && p !== 'NEUTRO'))].sort();
 
   // País de un rol. El nombre del rol manda sobre los niveles organizativos.
   // Un rol solo es pista si apunta a UN país: los roles multipaís (p. ej. una
@@ -1123,6 +1129,8 @@ function calcular() {
   const cachePais = {};
   const paisesDeRol = (agr) => {
     if (cachePais[agr]) return cachePais[agr];
+    // Excepción definida para este rol: manda sobre el nombre y los niveles organizativos.
+    if (rRol[agr]) return (cachePais[agr] = { paises: rRol[agr] === 'NEUTRO' ? [] : [rRol[agr]], multi: [], fuente: 'rol', motivos: [`excepción del rol: ${PAISES[rRol[agr]]}`] });
     const porNombre = new Set(), porOrg = new Set(), motivos = [];
     for (const t of tokensDe(agr)) if (rTok[t]) { porNombre.add(rTok[t]); motivos.push(`nombre: ${t}`); }
     for (const r of rCont) if (agr.includes(r.valor)) { porNombre.add(r.pais); motivos.push(`nombre contiene ${r.valor}`); }
@@ -1212,7 +1220,7 @@ function calcular() {
     else x.fuera++;
   }
   const huerfanas = [...new Set(asig.filter((a) => !porNombre[a.uname]).map((a) => a.uname))];
-  S.calc = { hayUso, usoUsr, periodoUso, hayFiori, fioriRol, tituloCatalogo, appsDeCatalogo, nombreServicio, serviciosRol, chipsCat, hayTx, txMenu, stcode, autRol, textoTx, infoRol, catalogo, catPorK, tagsRol, cuentas, porNombre, universo, roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
+  S.calc = { paisOrgRol, paisNombreRol, usuariosPorRol, hayUso, usoUsr, periodoUso, hayFiori, fioriRol, tituloCatalogo, appsDeCatalogo, nombreServicio, serviciosRol, chipsCat, hayTx, txMenu, stcode, autRol, textoTx, infoRol, catalogo, catPorK, tagsRol, cuentas, porNombre, universo, roles: Object.values(roles).filter((r) => r.enUniverso > 0), rolesTodos: roles, huerfanas, paisesDeRol };
   S.calc.riesgos = evaluarRiesgos();
 }
 
@@ -1991,7 +1999,7 @@ function vistaParametrizacion() {
       <td class="mono">${h(x.valor)}</td>
       <td class="num">${x.tipo === 'param' || x.tipo === 'clase' ? '—' : n(x.roles)}</td>
       <td class="num">${n(x.usuarios)}</td>
-      <td class="mono t2 peq">${x.ejemplos.map(h).join('<br>') || '—'}${contextoOrg(x)}</td>
+      <td class="mono t2 peq">${x.ejemplos.map(h).join('<br>') || '—'}${contextoOrg(x)}${x.tipo === 'token' ? `<div style="margin-top:4px"><button class="btn mini" data-accion="ver-token" data-valor="${h(x.valor)}">Revisar roles uno por uno</button></div>` : ''}</td>
       <td>${x.prop ? `${tagDef(x.prop.pais)}<div class="peq t2">${h(x.prop.origen)}</div>` : '<span class="muted">Sin propuesta</span>'}</td>
       <td><select class="campo" data-pdef="${h(x.k)}">${opcionesPais(x.def ? x.def.pais : '')}</select></td>
       <td>${x.def ? `<span class="tag ok"><i></i>Confirmado</span><div class="peq muted">${new Date(x.def.fecha).toLocaleDateString('es-UY')}${x.def.por ? ' · ' + h(x.def.por) : ''}</div>` : x.prop ? `<button class="btn mini" data-definir="${x.prop.pais}" data-k="${h(x.k)}">Confirmar propuesta</button>` : '<span class="tag warn"><i></i>Pendiente</span>'}</td>
@@ -2474,6 +2482,31 @@ function seccionFiori(roles, titulo) {
     <p class="t2 peq" style="margin:6px 0 0">Una app en el catálogo no alcanza para usarla: también hacen falta su servicio (S_SERVICE) y, si lleva a una transacción, S_TCODE y los objetos que la transacción chequea.</p>
   </div>`;
 }
+// País de un rol y excepción manual (para nombres engañosos, p. ej. "_CL" que no es Chile).
+function cajaPaisRol(agr) {
+  const C = S.calc, x = C.paisesDeRol(agr), def = S.param.definiciones[claveRegla('rol', '', agr)];
+  const actual = x.paises.length ? x.paises.map(tagPais).join(' ') : x.multi.length ? `<span class="tag"><i></i>Multipaís ${x.multi.join('+')}</span>` : '<span class="muted">Sin país</span>';
+  const org = C.paisOrgRol(agr);
+  return `<div class="card" style="margin-bottom:12px"><div class="card-h"><h2>País del rol</h2></div>
+    <p style="margin:0 0 6px">${actual} <span class="peq t2">${h(x.fuente === 'rol' ? 'Por excepción definida para este rol' : x.fuente === 'nombre' ? 'Por su nombre' : x.fuente === 'org' ? 'Por sus niveles organizativos' : 'Sin pistas')}${x.motivos.length ? ' · ' + h(x.motivos.slice(0, 6).join(', ')) : ''}</span></p>
+    <p class="peq t2" style="margin:0 0 8px">Niveles organizativos: ${org.length ? org.map(tagPais).join(' ') : 'sin país'}</p>
+    <label class="fila peq">Excepción para este rol <select class="campo" data-rol-pais="${h(agr)}"><option value="">— Sin excepción (usar las reglas)</option>${Object.entries(PAISES).map(([k, v]) => `<option value="${k}" ${def && def.pais === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+  </div>`;
+}
+// Lista de roles que tienen una parte del nombre, para revisar uno por uno si el país del nombre es correcto.
+function fichaToken(valor) {
+  const C = S.calc, roles = Object.keys(C.usuariosPorRol).filter((a) => tokensDe(a).includes(valor)).sort();
+  const filas = roles.map((agr) => {
+    const x = C.paisesDeRol(agr), org = C.paisOrgRol(agr), def = S.param.definiciones[claveRegla('rol', '', agr)];
+    const dudoso = !def && x.paises.length && org.length && !org.includes(x.paises[0]);
+    return `<tr><td><button class="link mono" data-rol="${h(agr)}">${h(agr)}</button>${dudoso ? ' <span class="tag warn"><i></i>Revisar</span>' : ''}</td><td class="num">${n(C.usuariosPorRol[agr].size)}</td>
+      <td>${org.length ? org.map(tagPais).join(' ') : '<span class="muted">—</span>'}</td><td>${x.paises.map(tagPais).join(' ') || (x.multi.length ? 'Multipaís' : '<span class="muted">—</span>')}</td>
+      <td><select class="campo" data-rol-pais="${h(agr)}" data-volver="${h(valor)}"><option value="">— Sin excepción</option>${Object.entries(PAISES).map(([k, v]) => `<option value="${k}" ${def && def.pais === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td></tr>`;
+  }).join('');
+  abrirCajon(`<div class="card-h"><h1 style="font-size:18px">Roles con <span class="mono">${h(valor)}</span> en el nombre (${n(roles.length)})</h1><button class="btn" data-accion="cerrar-cajon">Cerrar</button></div>
+    <p class="sub">Si un rol tiene la parte del nombre pero no es de ese país, definile una excepción. "Revisar" marca los roles cuyos niveles organizativos apuntan a otro país (puede ser normal en roles con valores de varios países).</p>
+    <div class="tabla-wrap"><table class="t"><thead><tr><th>Rol</th><th class="num">Usuarios</th><th>Niveles org.</th><th>País que se usa</th><th>Excepción</th></tr></thead><tbody>${filas}</tbody></table></div>`);
+}
 function fichaRol(agr) {
   const r = S.calc.rolesTodos[agr];
   if (!r) return;
@@ -2487,6 +2520,7 @@ function fichaRol(agr) {
       ${ir.modif ? `<div><dt>Última modificación</dt><dd>${fmtFecha(ir.modif)}</dd></div>` : ''}
       ${ir.compuesto ? `<div><dt>Roles simples que contiene (${n(ir.hijos.length)})</dt><dd class="mono peq">${h(ir.hijos.join(', '))}</dd></div>` : ''}
     </dl>` : ''}
+    ${cajaPaisRol(agr)}
     <div class="grid g6">${stat('Cuentas del universo', r.enUniverso)}${stat('Uruguay', r.uy)}${stat('Chile', r.cl)}${stat('Fuera del universo', r.fuera)}</div>
     ${S.calc.hayTx ? (() => {
       const tx = S.calc.txMenu[agr] || [], aut = S.calc.autRol[agr] || [];
@@ -2711,6 +2745,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'rk-exportar-csv') descargarCsv(`hallazgos_riesgos_${S.fechaRef}.csv`, ['Usuario', 'Nombre', 'Pais', 'Bloqueada', 'Regla', 'Tipo', 'Severidad', 'Estado regla', 'Evidencia', 'Uso observado', 'Estado hallazgo', 'Nota', 'Actualizado', 'Por', 'Excepcion', 'Motivo', 'Control mitigante', 'Aprobador', 'Aprobada el', 'Vence', 'Evidencia excepcion', 'Fecha extraccion'],
       S.calc.riesgos.hallazgos.map((x) => { const e = estadoHallazgo(x); return [x.c.bname, x.c.nombre, x.c.pais.join('+'), x.c.bloqueada ? 'Si' : 'No', x.r.nombre, x.r.tipo === 'sod' ? 'SoD' : 'Critica', SEVERIDADES[x.r.severidad], x.r.estado, x.ev.map(([cap, via]) => cap + ': ' + via.join(' / ')).join(' | '), textoUsoHallazgo(x), ESTADOS_HALLAZGO[e.estado], e.nota || '', e.fecha ? e.fecha.slice(0, 10) : '', e.por || '', estadoExcepcion(e), ...['motivo', 'control', 'aprobador', 'aprobado', 'vencimiento', 'evidencia'].map((f) => (e.excepcion || {})[f] || ''), S.fechaRef]; }));
   else if (a === 'q-buscar') { ['qCodigo', 'qCampo', 'qValor'].forEach((id) => { const el = document.getElementById(id); if (el) U[id] = el.value; }); render(); }
+  else if (a === 'ver-token') fichaToken(t.dataset.valor);
   else if (a === 'p-ver-difieren') { U.pEstado = 'difiere'; U.pUso = 'conuso'; U.pPag = 0; render(); }
   else if (a === 'p-saltar') { U.pSaltados.add(t.dataset.k); render(); }
   else if (a === 'p-sel-pagina') { document.querySelectorAll('[data-psel]').forEach((x) => U.pSel.add(x.dataset.psel)); render(); }
@@ -2764,6 +2799,7 @@ document.addEventListener('change', async (e) => {
   if (t.id === 'mapeo-hoja') { const P = S.pendiente; P.hoja = +t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
   if (t.id === 'mapeo-fe') { const P = S.pendiente; P.fe = Math.max(0, +t.value - 1); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
   if (t.dataset.mapeo !== undefined) { const P = S.pendiente; if (t.value) P.mapeo[t.dataset.mapeo] = t.value; else delete P.mapeo[t.dataset.mapeo]; P.resultado = null; return render(); }
+  if (t.dataset.rolPais !== undefined) { const agr = t.dataset.rolPais, volver = t.dataset.volver; definir([{ tipo: 'rol', campo: '', valor: agr }], t.value); return volver ? fichaToken(volver) : fichaRol(agr); }
   if (t.dataset.pdef) { U.pSel.delete(t.dataset.pdef); return definir([S.calc.catPorK[t.dataset.pdef]], t.value); }
   if (t.dataset.psel) { if (t.checked) U.pSel.add(t.dataset.psel); else U.pSel.delete(t.dataset.psel); return render(); }
   if (t.dataset.campoOrg || t.dataset.campoParam) {
