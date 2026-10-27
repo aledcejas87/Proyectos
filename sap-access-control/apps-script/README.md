@@ -146,3 +146,15 @@ script, `SPREADSHEET_ID`).
 - Apps Script interpreta `/*` como comienzo de comentario aun dentro del HTML: no usar esa secuencia
   fuera de comentarios reales (por ejemplo `accept="image/*"`).
 
+## País de los datos organizativos y acceso a otros países
+
+- Tablas opcionales recomendadas (grupo "Datos maestros"): `T001` (país de cada sociedad), `T001W` (país de cada
+  centro), `TVKO` (org. de ventas → sociedad), `T024E` (org. de compras → sociedad), `TKA02` (sociedad CO →
+  sociedades) y `TVKBZ` (oficina de ventas → org. de ventas). Con ellas la propuesta de país de cada valor sale
+  del dato maestro de SAP ("Dato maestro de SAP") y tiene prioridad sobre prefijos y supuestos.
+- **Acceso a datos de otros países** (Análisis, ficha de cuenta, Inicio, informe Excel y CSV): cruza el país de
+  cada cuenta del universo con el país de las sociedades, centros y organizaciones de sus roles vigentes
+  (AGR_1252). Los valores `*` se informan como "Todos". Usa la definición confirmada y, si no hay, el dato maestro.
+- **Excepciones por rol**: en la ficha de un rol (o desde "Revisar roles uno por uno" en una parte del nombre) se
+  puede fijar el país de un rol puntual; manda sobre el nombre y los niveles organizativos.
+

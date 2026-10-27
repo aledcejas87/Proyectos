@@ -503,6 +503,56 @@ const FUENTES = {
       ['objNombre', 'OBJ_NAME — Servicio', true, ['obj name', 'nombre de objeto']],
     ],
   },
+  T001: {
+    titulo: 'T001 — Sociedades (país)', obligatoria: false, grupo: 'maestros',
+    ayuda: 'SE16N → T001. País (LAND1) de cada sociedad. Es la base para saber de qué país es cada sociedad, organización de ventas y de compras.',
+    campos: [
+      ['bukrs', 'BUKRS — Sociedad', true, ['bukrs', 'sociedad']],
+      ['land1', 'LAND1 — País', true, ['land1', 'clave de pais', 'clave pais', 'pais', 'cl pais', 'clv pais']],
+      ['nombre', 'BUTXT — Nombre', false, ['butxt', 'nombre de la empresa', 'nombre empresa', 'denominacion', 'nombre']],
+    ],
+  },
+  T001W: {
+    titulo: 'T001W — Centros (país)', obligatoria: false, grupo: 'maestros',
+    ayuda: 'SE16N → T001W. País (LAND1) de cada centro.',
+    campos: [
+      ['werks', 'WERKS — Centro', true, ['werks', 'centro']],
+      ['land1', 'LAND1 — País', true, ['land1', 'clave de pais', 'clave pais', 'pais', 'cl pais', 'clv pais']],
+      ['nombre', 'NAME1 — Nombre', false, ['name1', 'nombre 1', 'nombre']],
+    ],
+  },
+  TVKO: {
+    titulo: 'TVKO — Organizaciones de ventas', obligatoria: false, grupo: 'maestros',
+    ayuda: 'SE16N → TVKO. Sociedad de cada organización de ventas (el país sale de T001).',
+    campos: [
+      ['vkorg', 'VKORG — Organización de ventas', true, ['vkorg', 'organizacion de ventas', 'org ventas', 'organizacion ventas']],
+      ['bukrs', 'BUKRS — Sociedad', true, ['bukrs', 'sociedad']],
+    ],
+  },
+  T024E: {
+    titulo: 'T024E — Organizaciones de compras', obligatoria: false, grupo: 'maestros',
+    ayuda: 'SE16N → T024E. Sociedad de cada organización de compras (vacía = compras para varias sociedades).',
+    campos: [
+      ['ekorg', 'EKORG — Organización de compras', true, ['ekorg', 'organizacion de compras', 'org compras', 'organizacion compras']],
+      ['bukrs', 'BUKRS — Sociedad', false, ['bukrs', 'sociedad']],
+    ],
+  },
+  TKA02: {
+    titulo: 'TKA02 — Sociedad ↔ sociedad CO', obligatoria: false, grupo: 'maestros',
+    ayuda: 'SE16N → TKA02. Qué sociedades usa cada sociedad CO (KOKRS).',
+    campos: [
+      ['bukrs', 'BUKRS — Sociedad', true, ['bukrs', 'sociedad']],
+      ['kokrs', 'KOKRS — Sociedad CO', true, ['kokrs', 'sociedad co', 'sociedad c o', 'soc co']],
+    ],
+  },
+  TVKBZ: {
+    titulo: 'TVKBZ — Oficinas de ventas', obligatoria: false, grupo: 'maestros',
+    ayuda: 'SE16N → TVKBZ. Organización de ventas de cada oficina de ventas.',
+    campos: [
+      ['vkorg', 'VKORG — Organización de ventas', true, ['vkorg', 'organizacion de ventas', 'org ventas', 'organizacion ventas']],
+      ['vkbur', 'VKBUR — Oficina de ventas', true, ['vkbur', 'oficina de ventas', 'oficina ventas']],
+    ],
+  },
   USREFUS: {
     titulo: 'USREFUS — Usuarios de referencia', obligatoria: false, grupo: 'complementos',
     ayuda: 'SE16N → USREFUS. Un usuario de referencia transfiere todos sus permisos sin figurar en los roles.',
@@ -726,6 +776,15 @@ function procesar(fuente, tabla, mapeo) {
         so: cfg.semantic_object || cfg.navigation_semantic_object || '', sa: cfg.semantic_action || cfg.navigation_semantic_action || '',
         prov: cfg.navigation_provider || '', tcode: (cfg.transaction && cfg.transaction.code) || '', ui5: cfg.ui5_component || '',
         wda: (cfg.web_dynpro && cfg.web_dynpro.application) || '', alias: cfg.target_application_alias || '' });
+    } else if (['T001', 'T001W', 'TVKO', 'T024E', 'TKA02', 'TVKBZ'].includes(fuente)) {
+      // Datos maestros chicos: se guardan los campos mapeados, en mayúsculas.
+      const x = {};
+      for (const [c] of FUENTES[fuente].campos) x[c] = c === 'nombre' ? txt(val(f, c)) : txt(val(f, c)).toUpperCase();
+      const clave = FUENTES[fuente].campos.filter((c) => c[2]).map(([c]) => x[c]).join('|');
+      if (!FUENTES[fuente].campos.filter((c) => c[2]).every(([c]) => x[c])) return rech.push(`Fila ${nf}: falta un campo obligatorio`);
+      if (claves.has(clave)) return duplicadas++;
+      claves.add(clave);
+      regs.push(x);
     } else if (fuente === 'USO') {
       // Se resume por usuario + transacción + clase: cantidad de documentos y rango de fechas.
       const u = usuario(val(f, 'usuario'));
@@ -877,7 +936,7 @@ const S = {
   tab: 'inicio',
   fechaRef: hoyISO(),
   demo: false,
-  datos: { AGR_BUFFI: null, AGR_HIER: null, PB_C_CHIP: null, USOBHASH: null, USO: null, AGR_TCODES: null, TSTCT: null, AGR_1251: null, USR02: null, AGR_USERS: null, AGR_1252: null, USR05: null, REF: null, AGR_DEFINE: null, AGR_TEXTS: null, AGR_AGRS: null, AGR_FLAGS: null, AGR_PROF: null, UST04: null, USR21: null, ADRP: null, USREFUS: null }, // {regs, meta}
+  datos: { AGR_BUFFI: null, AGR_HIER: null, PB_C_CHIP: null, USOBHASH: null, USO: null, T001: null, T001W: null, TVKO: null, T024E: null, TKA02: null, TVKBZ: null, AGR_TCODES: null, TSTCT: null, AGR_1251: null, USR02: null, AGR_USERS: null, AGR_1252: null, USR05: null, REF: null, AGR_DEFINE: null, AGR_TEXTS: null, AGR_AGRS: null, AGR_FLAGS: null, AGR_PROF: null, UST04: null, USR21: null, ADRP: null, USREFUS: null }, // {regs, meta}
   pendiente: null, // archivo leído esperando confirmación de mapeo
   lote: [], // resultado de la carga múltiple
   cargando: '',
@@ -938,8 +997,30 @@ const PROPUESTAS_SCIENZA = {
   prefijos: [['UY', 'UY'], ['CL', 'CL'], ['AR', 'AR'], ['SC', 'AR'], ['CR', 'OTRO']],
   tokens: { UY: 'UY', URU: 'UY', URY: 'UY', URUGUAY: 'UY', CL: 'CL', CHL: 'CL', CHILE: 'CL', AR: 'AR', ARG: 'AR', ARGENTINA: 'AR' },
 };
+// País de los valores organizativos según los datos maestros de SAP (T001, T001W, TVKO, T024E, TKA02, TVKBZ).
+// Se recalcula en cada cálculo; es la propuesta más fuerte.
+let MAESTRO = {};
+const CAMPO_BASE = { BUK: 'BUKRS', VKO: 'VKORG', EKO: 'EKORG', KOK: 'KOKRS', CAC: 'KOKRS', WRK: 'WERKS', SWERK: 'WERKS', IWERK: 'WERKS', BWKEY: 'WERKS', KKBER: '', VKBUR: 'VKBUR' };
+const campoBase = (c) => (c in CAMPO_BASE ? CAMPO_BASE[c] : c);
+const paisDeLand1 = (l) => (!l ? '' : ['UY', 'CL', 'AR'].includes(l) ? l : 'OTRO');
+function armarMaestro(regs) {
+  const m = {}, soc = {};
+  regs('T001').forEach((x) => { soc[x.bukrs] = x; m[`BUKRS=${x.bukrs}`] = { pais: paisDeLand1(x.land1), origen: `Dato maestro SAP: T001 ${x.bukrs} país ${x.land1}${x.nombre ? ' (' + x.nombre + ')' : ''}` }; });
+  regs('T001W').forEach((x) => { m[`WERKS=${x.werks}`] = { pais: paisDeLand1(x.land1), origen: `Dato maestro SAP: T001W ${x.werks} país ${x.land1}${x.nombre ? ' (' + x.nombre + ')' : ''}` }; });
+  const porSoc = (tabla, campo, valor, bukrs) => { const s2 = soc[bukrs]; if (s2) m[`${campo}=${valor}`] = { pais: paisDeLand1(s2.land1), origen: `Dato maestro SAP: ${tabla} ${valor} → sociedad ${bukrs} (${s2.land1})` }; };
+  regs('TVKO').forEach((x) => porSoc('TVKO', 'VKORG', x.vkorg, x.bukrs));
+  regs('T024E').forEach((x) => (x.bukrs ? porSoc('T024E', 'EKORG', x.ekorg, x.bukrs) : null));
+  const unico = (lista, tabla, campo, valor) => { const ps = [...new Set(lista.map((b) => soc[b] && paisDeLand1(soc[b].land1)).filter(Boolean))]; if (ps.length === 1) m[`${campo}=${valor}`] = { pais: ps[0], origen: `Dato maestro SAP: ${tabla} ${valor} → sociedad(es) ${lista.join(', ')}` }; };
+  const kok = {}; regs('TKA02').forEach((x) => (kok[x.kokrs] = kok[x.kokrs] || []).push(x.bukrs));
+  Object.entries(kok).forEach(([k, l]) => unico(l, 'TKA02', 'KOKRS', k));
+  const ofi = {}; regs('TVKBZ').forEach((x) => (ofi[x.vkbur] = ofi[x.vkbur] || new Set()).add(x.vkorg));
+  const vkSoc = {}; regs('TVKO').forEach((x) => (vkSoc[x.vkorg] = x.bukrs));
+  Object.entries(ofi).forEach(([o, vks]) => unico([...vks].map((v) => vkSoc[v]).filter(Boolean), 'TVKBZ', 'VKBUR', o));
+  return m;
+}
 function propuesta(tipo, campo, valor) {
   if (!valor || valor === '*') return null;
+  if ((tipo === 'org' || tipo === 'param') && MAESTRO[`${campoBase(campo)}=${valor}`]) return Object.assign({ o: 'maestro' }, MAESTRO[`${campoBase(campo)}=${valor}`]);
   if (tipo === 'token') {
     const p = PROPUESTAS_SCIENZA.tokens[valor] || (/^[ZY](UY|CL|AR)$/.exec(valor) || [])[1];
     return p ? { pais: p, origen: 'Parte de nombre con código de país', o: 'nombre' } : null;
@@ -972,6 +1053,7 @@ function calcular() {
   const ref = S.fechaRef;
   const regs = (f) => (S.datos[f] ? S.datos[f].regs : []);
   const usr = regs('USR02'), asig = regs('AGR_USERS'), org = regs('AGR_1252'), refl = regs('REF');
+  MAESTRO = armarMaestro(regs);
   const P = S.param;
   const camposOrg = new Set(P.camposOrg), camposParam = new Set(P.camposParam);
 
@@ -1211,6 +1293,39 @@ function calcular() {
   const universo = cuentas.filter((c) => c.final === 'incluir');
   const enU = new Set(universo.map((c) => c.bname));
 
+  // Alcance por país: de qué países son las sociedades, centros y organizaciones de los roles
+  // vigentes (definición confirmada; si no hay, dato maestro de SAP; en modo provisorio, la propuesta).
+  const paisValorOrg = (campo, valor) => {
+    const y = catPorK[claveRegla('org', campo, valor)];
+    if (y && y.def) return y.def.pais === 'NEUTRO' ? '' : y.def.pais;
+    const mm = MAESTRO[`${campoBase(campo)}=${valor}`];
+    if (mm) return mm.pais;
+    return usarProp && y && y.prop && y.prop.pais !== 'NEUTRO' ? y.prop.pais : '';
+  };
+  const conocidos = {}; // campo → valores conocidos (para resolver rangos)
+  for (const k of Object.keys(MAESTRO)) { const [c0, v] = k.split('='); (conocidos[c0] = conocidos[c0] || new Set()).add(v); }
+  for (const x of catalogo) if (x.tipo === 'org') (conocidos[campoBase(x.campo)] = conocidos[campoBase(x.campo)] || new Set()).add(x.valor);
+  const cacheAlcance = {};
+  const alcanceRol = (agr) => {
+    if (cacheAlcance[agr]) return cacheAlcance[agr];
+    const items = [];
+    for (const o of orgPorRol[agr] || []) {
+      if (!camposOrg.has(o.varbl) || !campoBase(o.varbl)) continue;
+      if (o.low === '*' || (o.low.endsWith('*') && !o.high)) { items.push({ campo: o.varbl, valor: o.low, pais: '*' }); continue; }
+      const vals = o.high ? [...(conocidos[campoBase(o.varbl)] || [])].filter((v) => v >= o.low && v <= o.high) : [o.low];
+      for (const v of vals) { const p = paisValorOrg(o.varbl, v); if (p) items.push({ campo: o.varbl, valor: o.high ? `${v} (rango ${o.low}–${o.high})` : v, pais: p }); }
+    }
+    return (cacheAlcance[agr] = items);
+  };
+  for (const c of universo) {
+    const det = {};
+    for (const agr of c.vigentes) for (const it of alcanceRol(agr)) { const k = `${it.pais}|${it.campo}|${it.valor}`; (det[k] = det[k] || Object.assign({ roles: [] }, it)).roles.push(agr); }
+    const detalle = Object.values(det).sort((a, b) => a.pais.localeCompare(b.pais) || a.campo.localeCompare(b.campo) || a.valor.localeCompare(b.valor));
+    const paises = [...new Set(detalle.map((d) => d.pais))].sort();
+    const fuera = c.pais.length ? paises.filter((p) => p === '*' || !c.pais.includes(p)) : [];
+    c.alcance = { paises, fuera, detalle };
+  }
+
   // Roles: vista inversa
   const roles = {};
   for (const c of cuentas) for (const r of c.roles) {
@@ -1272,7 +1387,7 @@ function pie(lista, pg, clave) {
 
 // ---------------------------------------------------------- vista: cargar
 const ETIQUETAS_CAMPO = { BUKRS: 'la sociedad', VKORG: 'la organización de ventas', KOKRS: 'la sociedad CO', EKORG: 'la organización de compras', KKBER: 'el área de control de créditos', VKBUR: 'la oficina de ventas', VKGRP: 'el grupo de vendedores', WERKS: 'el centro', SWERK: 'el centro de mantenimiento', BWKEY: 'el ámbito de valoración', IWERK: 'el centro de planificación' };
-const GRUPOS = [['base', 'Necesarios'], ['pistas', 'Pistas de país'], ['roles', 'Estructura de roles'], ['permisos', 'Transacciones y autorizaciones'], ['fiori', 'Fiori'], ['uso', 'Evidencia de uso (opcional)'], ['complementos', 'Complementos']];
+const GRUPOS = [['base', 'Necesarios'], ['pistas', 'Pistas de país'], ['maestros', 'Datos maestros de organización (país desde SAP, recomendados)'], ['roles', 'Estructura de roles'], ['permisos', 'Transacciones y autorizaciones'], ['fiori', 'Fiori'], ['uso', 'Evidencia de uso (opcional)'], ['complementos', 'Complementos']];
 // Qué se pierde si falta cada tabla (las de evidencia de uso y la lista de referencia son opcionales).
 const IMPACTO_FALTANTE = {
   USR02: 'Sin cuentas no hay análisis: es obligatoria.', AGR_USERS: 'Sin asignaciones de roles no hay análisis: es obligatoria.',
@@ -1294,6 +1409,7 @@ function controlArchivos() {
   return `<div class="card" style="margin-top:12px"><div class="card-h"><h2>Control de archivos</h2>${faltan.length ? `<span class="tag warn"><i></i>Faltan ${faltan.length} de ${Object.keys(IMPACTO_FALTANTE).length}</span>` : '<span class="tag ok"><i></i>Están todas las tablas</span>'}</div>
     ${faltan.length ? `<table class="t"><thead><tr><th>Tabla que falta</th><th>Qué se pierde</th></tr></thead><tbody>${faltan.map((f) => `<tr><td class="mono">${h(f)}${FUENTES[f].obligatoria ? ' <span class="tag crit"><i></i>Obligatoria</span>' : ''}</td><td class="peq">${h(IMPACTO_FALTANTE[f])}</td></tr>`).join('')}</tbody></table>` : '<p class="t2 peq" style="margin:0">Se cargaron las 20 tablas del análisis. La evidencia de uso y la lista de referencia son opcionales.</p>'}
     ${avisos.map((a) => `<div class="aviso warn" style="margin:10px 0 0">${h(a)}</div>`).join('')}
+    ${!S.datos.T001 || !S.datos.T001W ? '<p class="t2 peq" style="margin:10px 0 0">Recomendado: T001 y T001W (y TVKO, T024E, TKA02, TVKBZ) dan el país real de cada sociedad, centro y organización desde SAP. Son tablas chicas.</p>' : ''}
   </div>`;
 }
 function vistaCargar() {
@@ -1801,6 +1917,7 @@ function exportarInforme() {
     hoja('Resultados por regla', ['Área', 'Regla', 'Tipo', 'Severidad', 'Estado', 'Cuentas', 'UY', 'CL', 'Con uso observado'],
       R.reglas.map((r) => { const h2 = hs.filter((x) => x.r.id === r.id); return [r.area || '', r.nombre, r.tipo === 'sod' ? 'SoD' : 'Crítica', SEVERIDADES[r.severidad], r.estado || 'propuesta', h2.length, h2.filter((x) => x.c.pais.includes('UY')).length, h2.filter((x) => x.c.pais.includes('CL')).length, C.hayUso ? h2.filter((x) => x.usoNivel === 'total').length : '']; }));
   }
+  hoja('Acceso a otros países', ['Usuario', 'Nombre', 'País usuario', 'País del dato', 'Campo', 'Valor', 'Roles'], filasOtroPais());
   if (C.hayUso) {
     hoja('Evidencia de uso', ['Usuario', 'Nombre', 'País', 'Tabla', 'Transacción', 'Descripción', 'Clase de objeto', 'Documentos', 'Desde', 'Hasta'],
       u.flatMap((c) => (C.usoUsr[c.bname] || []).map((x) => [c.bname, c.nombre, c.pais.join('+'), x.tabla, x.tcode, C.textoTx[x.tcode] || '', x.clase, x.n, x.desde || '', x.hasta || ''])));
@@ -1977,7 +2094,7 @@ function vistaParametrizacion() {
       <select class="campo" id="pEstado">${[['sinconfirmar', 'Sin confirmar'], ['confirmados', 'Confirmados'], ['difiere', 'Confirmado distinto de la propuesta'], ['todos', 'Todos']].map(([k, v]) => `<option value="${k}" ${U.pEstado === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
       <select class="campo" id="pTipo"><option value="">Todos los tipos</option>${[['org', 'Niveles org. de roles'], ['param', 'Parámetros de usuario'], ['token', 'Nombres de roles'], ['clase', 'Grupos de usuarios']].map(([k, v]) => `<option value="${k}" ${U.pTipo === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
       <select class="campo" id="pCampo"><option value="">Todos los campos</option>${campos.map((c) => `<option value="${h(c)}" ${U.pCampo === c ? 'selected' : ''}>${h(c)} · ${h(DESC_CAMPO[c] || '')}</option>`).join('')}</select>
-      <select class="campo" id="pOrigen"><option value="">Cualquier propuesta</option>${[['respuesta', 'Tu respuesta del 23/10'], ['prefijo', 'Por prefijo'], ['supuesto', 'Supuesto (resto de centros)'], ['nombre', 'Parte de nombre'], ['ninguna', 'Sin propuesta']].map(([k, v]) => `<option value="${k}" ${U.pOrigen === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select class="campo" id="pOrigen"><option value="">Cualquier propuesta</option>${[['maestro', 'Dato maestro de SAP'], ['respuesta', 'Tu respuesta del 23/10'], ['prefijo', 'Por prefijo'], ['supuesto', 'Supuesto (resto de centros)'], ['nombre', 'Parte de nombre'], ['ninguna', 'Sin propuesta']].map(([k, v]) => `<option value="${k}" ${U.pOrigen === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
       <select class="campo" id="pPais"><option value="">Cualquier país</option>${Object.entries(PAISES).map(([k, v]) => `<option value="${k}" ${U.pPais === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
       <select class="campo" id="pUso"><option value="conuso" ${U.pUso === 'conuso' ? 'selected' : ''}>Solo con usuarios</option><option value="todos" ${U.pUso === 'todos' ? 'selected' : ''}>Incluir sin uso</option></select>
       <input class="campo" id="pTexto" placeholder="Buscar código o rol…" value="${h(U.pTexto)}">
@@ -2120,6 +2237,7 @@ function vistaUniverso() {
 
 // -------------------------------------------------------- vista: análisis
 const SENALES = [
+  ['otroPais', 'alta', 'Acceso a datos de otro país', 'Sus roles incluyen sociedades, centros u organizaciones de un país distinto del suyo, o todos (*). Según los datos maestros de SAP o la parametrización confirmada.', (c) => !!(c.alcance && c.alcance.fuera.length)],
   ['perfilCritico', 'alta', 'SAP_ALL o SAP_NEW asignado directamente', 'Perfil con acceso total o casi total, fuera de los roles. Revisar con prioridad.', (c) => c.critico],
   ['perfilDirecto', 'media', 'Otros perfiles asignados directamente', 'Perfiles que no provienen de un rol (UST04). Sus autorizaciones no se ven en los roles.', (c) => c.perfilesDirectos.some((p) => !PERFILES_CRITICOS.has(p))],
   ['todasTx', 'alta', 'Rol que habilita todas las transacciones', 'Tiene un rol con S_TCODE = * (cualquier transacción). Nivel 2: autorización configurada.', (c) => c.rolesTodasTx.length > 0],
@@ -2187,6 +2305,29 @@ function vistaConsulta() {
     ${res}
   </div>`;
 }
+// Acceso a datos de otros países: cuentas cuyos roles incluyen valores organizativos de un país que no es el suyo.
+const ET_PAIS = (p) => (p === '*' ? 'Todos (*)' : PAISES[p] || p);
+function seccionOtroPais(u) {
+  const conMaestro = ['T001', 'T001W'].filter((f) => S.datos[f]).length;
+  const afectadas = u.filter((c) => c.alcance && c.alcance.fuera.length);
+  const sinPais = u.filter((c) => !c.pais.length).length;
+  const pares = {};
+  for (const c of afectadas) for (const p of c.alcance.fuera) { const k = `${c.pais.join('+')} → ${ET_PAIS(p)}`; pares[k] = (pares[k] || 0) + 1; }
+  const filas = afectadas.slice(0, 200).map((c) => {
+    const det = c.alcance.detalle.filter((d) => c.alcance.fuera.includes(d.pais));
+    const porPais = {};
+    for (const d of det) (porPais[d.pais] = porPais[d.pais] || []).push(d);
+    return `<tr><td><button class="link mono" data-ficha="${h(c.bname)}">${h(c.bname)}</button>${c.nombre ? `<div class="peq t2">${h(c.nombre)}</div>` : ''}</td><td>${c.pais.map(tagPais).join(' ')}</td>
+      <td class="peq">${Object.entries(porPais).map(([p, ds]) => `<b>${h(ET_PAIS(p))}</b>: <span class="mono">${h([...new Set(ds.map((d) => `${d.campo}=${d.valor}`))].slice(0, 8).join(', '))}${ds.length > 8 ? '…' : ''}</span>`).join('<br>')}</td>
+      <td class="mono peq">${h([...new Set(det.flatMap((d) => d.roles))].slice(0, 6).join(', '))}</td></tr>`;
+  }).join('');
+  return `<div class="card"><div class="card-h"><h2>Acceso a datos de otros países (${n(afectadas.length)} cuenta(s))</h2><button class="btn" data-accion="exportar-otropais">Exportar CSV</button></div>
+    <p class="t2 peq" style="margin-top:0">Cruza el país de cada cuenta con el país de las sociedades, centros y organizaciones de sus roles vigentes (AGR_1252). El país de cada valor sale de la parametrización confirmada o, si no está confirmado, de los datos maestros de SAP${conMaestro ? '' : ' <b>(no cargados: cargá T001 y T001W en el paso 1 para tener el país real de sociedades y centros)</b>'}. Es configuración de roles (nivel 1-2): indica a qué datos podría acceder, no que los haya usado.${sinPais ? ` ${n(sinPais)} cuenta(s) del universo no tienen país asignado y no se evalúan.` : ''}</p>
+    ${Object.keys(pares).length ? `<p class="peq" style="margin:0 0 8px">${Object.entries(pares).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="tag warn"><i></i>${h(k)}: ${n(v)}</span>`).join(' ')}</p>` : ''}
+    ${filas ? `<div class="tabla-wrap" style="max-height:420px"><table class="t"><thead><tr><th>Usuario</th><th>País</th><th>Datos de otro país</th><th>Roles que lo dan</th></tr></thead><tbody>${filas}</tbody></table></div>` : '<p class="t2">Ninguna cuenta del universo tiene valores organizativos de otro país.</p>'}
+  </div>`;
+}
+const filasOtroPais = () => S.calc.universo.filter((c) => c.alcance && c.alcance.fuera.length).flatMap((c) => c.alcance.detalle.filter((d) => c.alcance.fuera.includes(d.pais)).map((d) => [c.bname, c.nombre, c.pais.join('+'), ET_PAIS(d.pais), d.campo, d.valor, d.roles.join(', ')]));
 function vistaAnalisis() {
   const C = S.calc, U = S.ui, P = S.conf;
   if (!C || !C.universo.length) return '<h1>Análisis</h1><div class="aviso warn"><b>El universo está vacío</b>Definí en el paso 2 qué cuentas incluir.</div>';
@@ -2243,6 +2384,7 @@ function vistaAnalisis() {
     <p class="t2 peq" style="margin-top:0">Indicios sobre asignaciones registradas, no hallazgos confirmados. Hacé clic en el número para filtrar la lista.</p>
     <table class="t"><tbody>${SENALES.map((s) => `<tr><td style="width:120px"><span class="sev ${s[1]}"><b>${s[1] === 'alta' ? '▲' : s[1] === 'media' ? '●' : 'i'}</b>${s[1] === 'info' ? 'Informativa' : s[1] === 'alta' ? 'Prioridad alta' : 'Revisar'}</span></td><td><b>${h(s[2])}</b><div class="peq t2">${h(txtSenal(s, P))}</div></td><td class="num"><button class="link" style="font-size:18px;font-weight:600" data-accion="a-s:${s[0]}">${n(conteo[s[0]])}</button></td></tr>`).join('')}</tbody></table>
   </div>
+  ${seccionOtroPais(u)}
   <div class="card">
     <div class="card-h"><h2>Cuentas del universo</h2><div class="fila"><button class="btn" data-accion="exportar-cuentas">Exportar CSV</button><button class="btn" data-accion="h-informe">Informe completo (Excel)</button></div></div>
     <div class="fila" style="margin-bottom:8px">
@@ -2344,6 +2486,7 @@ function vistaInicio() {
     ${statIr('SAP_ALL / SAP_NEW', critico, 'perfil asignado directo', 'analisis', critico ? 'alerta' : 'bien')}
     ${statIr('Con transacciones críticas', conTxCrit, 'administración y desarrollo', 'analisis', conTxCrit ? 'atencion' : '')}
     ${statIr('Excepciones vencidas', vencidas, 'requieren renovación', 'riesgos', vencidas ? 'alerta' : '')}
+    ${statIr('Acceso a datos de otro país', u.filter((c) => c.alcance && c.alcance.fuera.length).length, 'sociedades / centros de otro país', 'analisis', u.some((c) => c.alcance && c.alcance.fuera.length) ? 'alerta' : 'bien')}
   </div>
   ${hs.length ? `<div class="grid g2" style="margin-top:12px">
     <div class="card"><h2>Hallazgos por severidad</h2>${barra([['Alta', alta.length, 'var(--crit)'], ['Media', media, 'var(--serious)'], ['Baja', baja, 'var(--base)']])}
@@ -2423,6 +2566,9 @@ function fichaCuenta(b) {
       <div class="tabla-wrap"><table class="t"><thead><tr><th>Rol</th><th>Estado</th><th>Desde</th><th>Hasta</th><th>COL_FLAG</th><th>País (pistas)</th></tr></thead><tbody>${roles || '<tr><td colspan="6" class="muted">Sin roles.</td></tr>'}</tbody></table></div>
     </div>
     ${seccionRiesgos(c)}
+    ${c.alcance && c.alcance.detalle.length ? `<div class="card"><h2>Alcance por país de sus roles</h2>
+      <p class="peq" style="margin:0 0 6px">Países: ${c.alcance.paises.map((p) => (p === '*' ? '<span class="tag warn"><i></i>Todos (*)</span>' : tagPais(p))).join(' ')}${c.alcance.fuera.length ? ` <span class="tag crit"><i></i>Fuera de su país: ${h(c.alcance.fuera.map(ET_PAIS).join(', '))}</span>` : ''}</p>
+      <div class="tabla-wrap" style="max-height:260px"><table class="t"><thead><tr><th>País</th><th>Campo</th><th>Valor</th><th>Roles</th></tr></thead><tbody>${c.alcance.detalle.map((d) => `<tr><td>${h(ET_PAIS(d.pais))}</td><td class="mono">${h(d.campo)}</td><td class="mono">${h(d.valor)}</td><td class="mono peq">${h(d.roles.join(', '))}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
     ${S.calc.hayTx ? seccionTransacciones(c) : ''}
     ${seccionFiori(c.vigentes, 'Fiori')}
     ${seccionUso(c)}
@@ -2566,9 +2712,9 @@ async function elegirArchivo(fuente, file, agregar = false) {
   render();
   document.getElementById('mapeo').scrollIntoView({ behavior: 'smooth' });
 }
-const ORDEN_NOMBRES = ['AGR_BUFFI', 'AGR_HIER', 'PB_C_CHIP', 'USOBHASH', 'AGR_USERS', 'AGR_1252', 'AGR_1251', 'AGR_TCODES', 'AGR_DEFINE', 'AGR_TEXTS', 'AGR_AGRS', 'AGR_FLAGS', 'AGR_PROF', 'USREFUS', 'USR02', 'USR05', 'USR21', 'UST04', 'ADRP', 'TSTCT'];
+const ORDEN_NOMBRES = ['T001W', 'TKA02', 'TVKBZ', 'TVKO', 'T024E', 'T001', 'AGR_BUFFI', 'AGR_HIER', 'PB_C_CHIP', 'USOBHASH', 'AGR_USERS', 'AGR_1252', 'AGR_1251', 'AGR_TCODES', 'AGR_DEFINE', 'AGR_TEXTS', 'AGR_AGRS', 'AGR_FLAGS', 'AGR_PROF', 'USREFUS', 'USR02', 'USR05', 'USR21', 'UST04', 'ADRP', 'TSTCT'];
 // Orden de procesamiento: las tablas que filtran a otras van primero.
-const ORDEN_CARGA = ['USR02', 'AGR_USERS', 'USR21', 'ADRP', 'USR05', 'UST04', 'USREFUS', 'AGR_1252', 'AGR_DEFINE', 'AGR_TEXTS', 'AGR_AGRS', 'AGR_FLAGS', 'AGR_PROF', 'AGR_TCODES', 'AGR_1251', 'TSTCT', 'AGR_BUFFI', 'AGR_HIER', 'PB_C_CHIP', 'USOBHASH', 'USO'];
+const ORDEN_CARGA = ['T001', 'T001W', 'TVKO', 'T024E', 'TKA02', 'TVKBZ', 'USR02', 'AGR_USERS', 'USR21', 'ADRP', 'USR05', 'UST04', 'USREFUS', 'AGR_1252', 'AGR_DEFINE', 'AGR_TEXTS', 'AGR_AGRS', 'AGR_FLAGS', 'AGR_PROF', 'AGR_TCODES', 'AGR_1251', 'TSTCT', 'AGR_BUFFI', 'AGR_HIER', 'PB_C_CHIP', 'USOBHASH', 'USO'];
 const fuentePorNombre = (nombre) => { const up = nombre.toUpperCase(); return ORDEN_NOMBRES.find((f) => up.includes(f) || up.includes(f.replace('_', ''))) || (tablaUso(nombre) ? 'USO' : null); };
 function detectarFuente(nombre, archivo) {
   const porNombre = fuentePorNombre(nombre);
@@ -2746,6 +2892,7 @@ document.addEventListener('click', (e) => {
       S.calc.riesgos.hallazgos.map((x) => { const e = estadoHallazgo(x); return [x.c.bname, x.c.nombre, x.c.pais.join('+'), x.c.bloqueada ? 'Si' : 'No', x.r.nombre, x.r.tipo === 'sod' ? 'SoD' : 'Critica', SEVERIDADES[x.r.severidad], x.r.estado, x.ev.map(([cap, via]) => cap + ': ' + via.join(' / ')).join(' | '), textoUsoHallazgo(x), ESTADOS_HALLAZGO[e.estado], e.nota || '', e.fecha ? e.fecha.slice(0, 10) : '', e.por || '', estadoExcepcion(e), ...['motivo', 'control', 'aprobador', 'aprobado', 'vencimiento', 'evidencia'].map((f) => (e.excepcion || {})[f] || ''), S.fechaRef]; }));
   else if (a === 'q-buscar') { ['qCodigo', 'qCampo', 'qValor'].forEach((id) => { const el = document.getElementById(id); if (el) U[id] = el.value; }); render(); }
   else if (a === 'ver-token') fichaToken(t.dataset.valor);
+  else if (a === 'exportar-otropais') descargarCsv(`acceso_otro_pais_${S.fechaRef}.csv`, ['Usuario', 'Nombre', 'Pais usuario', 'Pais del dato', 'Campo', 'Valor', 'Roles', 'Fecha extraccion'], filasOtroPais().map((f) => [...f, S.fechaRef]));
   else if (a === 'p-ver-difieren') { U.pEstado = 'difiere'; U.pUso = 'conuso'; U.pPag = 0; render(); }
   else if (a === 'p-saltar') { U.pSaltados.add(t.dataset.k); render(); }
   else if (a === 'p-sel-pagina') { document.querySelectorAll('[data-psel]').forEach((x) => U.pSel.add(x.dataset.psel)); render(); }
