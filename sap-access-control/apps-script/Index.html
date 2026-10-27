@@ -1073,7 +1073,7 @@ function calcular() {
     const x = item(d.tipo, d.campo, d.valor);
     if (d.tipo === 'contiene') for (const agr of Object.keys(usuariosPorRol)) if (agr.includes(d.valor)) sumarRol(x, agr);
   }
-  const catalogo = Object.values(cat).map((x) => ({ ...x, roles: x.roles.size, usuarios: x.usuarios.size, ejemplos: [...x.roles].slice(0, 3), prop: propuesta(x.tipo, x.campo, x.valor), def: P.definiciones[x.k] || null }))
+  const catalogo = Object.values(cat).map((x) => ({ ...x, roles: x.roles.size, usuarios: x.usuarios.size, ejemplos: [...x.roles].slice(0, 3), listaRoles: x.roles, prop: propuesta(x.tipo, x.campo, x.valor), def: P.definiciones[x.k] || null }))
     .sort((a, b) => b.usuarios - a.usuarios || b.roles - a.roles || a.k.localeCompare(b.k));
   const catPorK = {};
   catalogo.forEach((x) => (catPorK[x.k] = x));
@@ -1090,6 +1090,32 @@ function calcular() {
     else if (x.tipo === 'org') rOrg[`${x.campo}=${x.valor}`] = pais;
     else if (x.tipo === 'param') rParam[`${x.campo}=${x.valor}`] = pais;
   }
+
+  // Contexto para decidir un nivel organizativo: país de sus roles según el nombre
+  // (definiciones confirmadas o propuestas) y otros valores del mismo campo que lo acompañan.
+  const paisDe = (y) => (y ? (y.def ? y.def.pais : y.prop ? y.prop.pais : '') : '');
+  const contieneP = catalogo.filter((y) => y.tipo === 'contiene' && paisDe(y) && paisDe(y) !== 'NEUTRO');
+  const cacheNombre = {};
+  const paisNombreRol = (agr) => {
+    if (agr in cacheNombre) return cacheNombre[agr];
+    const ps = new Set();
+    for (const t of tokensDe(agr)) { const p = paisDe(catPorK[claveRegla('token', '', t)]); if (p && p !== 'NEUTRO') ps.add(p); }
+    for (const y of contieneP) if (agr.includes(y.valor)) ps.add(paisDe(y));
+    return (cacheNombre[agr] = ps.size === 1 ? [...ps][0] : ps.size > 1 ? 'MULTI' : '');
+  };
+  const valoresPorRolCampo = {};
+  for (const o of org) if (camposOrg.has(o.varbl) && o.low && o.low !== '*') (valoresPorRolCampo[`${o.agr}|${o.varbl}`] = valoresPorRolCampo[`${o.agr}|${o.varbl}`] || new Set()).add(o.low);
+  for (const x of catalogo) {
+    if (x.tipo !== 'org') continue;
+    const dist = {}, otros = {};
+    for (const agr of x.listaRoles) {
+      const p = paisNombreRol(agr); dist[p] = (dist[p] || 0) + 1;
+      for (const v of valoresPorRolCampo[`${agr}|${x.campo}`] || []) if (v !== x.valor) otros[v] = (otros[v] || 0) + 1;
+    }
+    x.porNombre = dist;
+    x.acompanan = Object.entries(otros).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([v, k]) => { const y = catPorK[claveRegla('org', x.campo, v)]; return { v, k, pais: paisDe(y) }; });
+  }
+  for (const x of catalogo) delete x.listaRoles;
 
   // País de un rol. El nombre del rol manda sobre los niveles organizativos.
   // Un rol solo es pista si apunta a UN país: los roles multipaís (p. ej. una
@@ -1874,6 +1900,14 @@ function filtrarCatalogo() {
   if (U.pTexto) { const t = U.pTexto.toUpperCase(); l = l.filter((x) => x.valor.includes(t) || x.campo.includes(t) || x.ejemplos.some((e) => e.includes(t))); }
   return l;
 }
+// Ayuda para decidir: de qué país son (por su nombre) los roles que tienen el valor, y qué otros valores lo acompañan.
+function contextoOrg(x) {
+  if (x.tipo !== 'org' || !x.porNombre) return '';
+  const et = { UY: 'UY', CL: 'CL', AR: 'AR', MULTI: 'varios países', '': 'sin país en el nombre' };
+  const dist = Object.entries(x.porNombre).sort((a, b) => b[1] - a[1]).map(([p, k]) => `${n(k)} ${et[p] || p}`).join(' · ');
+  const acomp = (x.acompanan || []).map((o) => `${h(o.v)}${o.pais ? ` <span class="muted">(${h(o.pais)})</span>` : ''}`).join(', ');
+  return `<div class="t2" style="font-family:inherit;margin-top:6px">Roles según su nombre: ${dist}${acomp ? `<br>Suele estar junto a: <span class="mono">${acomp}</span>` : ''}</div>`;
+}
 function vistaParametrizacion() {
   const C = S.calc, U = S.ui, P = S.param;
   const encabezado = `<h1>Parametrización de países</h1>
@@ -1907,6 +1941,7 @@ function vistaParametrizacion() {
     <div class="card-h"><h2>Revisión guiada <span class="muted peq">(${n(enUso.length - confirmados)} dato(s) en uso sin confirmar)</span></h2></div>
     <p style="margin:0 0 6px">¿A qué país corresponde ${siguiente.campo ? `<b>${h(desc(siguiente))}</b> <span class="mono" style="font-size:15px">${h(siguiente.campo)} = ${h(siguiente.valor)}</span>` : `${h(TIPOS_DEF[siguiente.tipo].toLowerCase())} <span class="mono" style="font-size:15px">${h(siguiente.valor)}</span>`}?</p>
     <p class="t2 peq" style="margin:0 0 6px">${siguiente.tipo === 'param' ? `Parámetro de usuario (USR05) de ${n(siguiente.usuarios)} usuario(s).` : `Aparece en ${n(siguiente.roles)} rol(es) asignados a ${n(siguiente.usuarios)} usuario(s)${siguiente.ejemplos.length ? `, p. ej. <span class="mono">${siguiente.ejemplos.map(h).join(', ')}</span>` : ''}.`}</p>
+    ${contextoOrg(siguiente) ? `<div class="peq" style="margin:0 0 6px">${contextoOrg(siguiente)}</div>` : ''}
     <p class="peq" style="margin:0 0 10px">${siguiente.prop ? `Propuesta: ${tagDef(siguiente.prop.pais)} <span class="t2">(${h(siguiente.prop.origen)})</span>` : '<span class="t2">Sin propuesta: elegí el país.</span>'}</p>
     <div class="fila">
       ${siguiente.prop ? `<button class="btn prim" data-definir="${siguiente.prop.pais}" data-k="${h(siguiente.k)}">Confirmar: ${PAISES[siguiente.prop.pais]}</button>` : ''}
@@ -1952,7 +1987,7 @@ function vistaParametrizacion() {
       <td class="mono">${h(x.valor)}</td>
       <td class="num">${x.tipo === 'param' || x.tipo === 'clase' ? '—' : n(x.roles)}</td>
       <td class="num">${n(x.usuarios)}</td>
-      <td class="mono t2 peq">${x.ejemplos.map(h).join('<br>') || '—'}</td>
+      <td class="mono t2 peq">${x.ejemplos.map(h).join('<br>') || '—'}${contextoOrg(x)}</td>
       <td>${x.prop ? `${tagDef(x.prop.pais)}<div class="peq t2">${h(x.prop.origen)}</div>` : '<span class="muted">Sin propuesta</span>'}</td>
       <td><select class="campo" data-pdef="${h(x.k)}">${opcionesPais(x.def ? x.def.pais : '')}</select></td>
       <td>${x.def ? `<span class="tag ok"><i></i>Confirmado</span><div class="peq muted">${new Date(x.def.fecha).toLocaleDateString('es-UY')}${x.def.por ? ' · ' + h(x.def.por) : ''}</div>` : x.prop ? `<button class="btn mini" data-definir="${x.prop.pais}" data-k="${h(x.k)}">Confirmar propuesta</button>` : '<span class="tag warn"><i></i>Pendiente</span>'}</td>
