@@ -1937,6 +1937,9 @@ function vistaParametrizacion() {
   const desc = (x) => (x.campo ? DESC_CAMPO[x.campo] || x.campo : TIPOS_DEF[x.tipo]);
   const opcionesPais = (actual) => `<option value="">— Sin confirmar</option>${Object.entries(PAISES).map(([k, v]) => `<option value="${k}" ${actual === k ? 'selected' : ''}>${v}</option>`).join('')}`;
 
+  // Confirmaciones que contradicen la propuesta: pueden ser decisiones a propósito o errores (p. ej. una confirmación masiva).
+  const difieren = enUso.filter((x) => x.def && x.prop && x.def.pais !== x.prop.pais);
+  const avisoDifieren = difieren.length && U.pEstado !== 'difiere' ? `<div class="aviso warn"><b>${n(difieren.length)} confirmación(es) distintas de la propuesta</b>Revisalas por si alguna quedó mal: ${difieren.slice(0, 6).map((x) => `<span class="mono">${h(x.campo ? x.campo + '=' : '')}${h(x.valor)}</span> → ${h(PAISES[x.def.pais])} (propuesta ${h(PAISES[x.prop.pais])})`).join(' · ')}${difieren.length > 6 ? '…' : ''} <button class="btn mini" data-accion="p-ver-difieren">Ver todas</button></div>` : '';
   const guiada = siguiente ? `<div class="card" style="border-left:4px solid var(--accent)">
     <div class="card-h"><h2>Revisión guiada <span class="muted peq">(${n(enUso.length - confirmados)} dato(s) en uso sin confirmar)</span></h2></div>
     <p style="margin:0 0 6px">¿A qué país corresponde ${siguiente.campo ? `<b>${h(desc(siguiente))}</b> <span class="mono" style="font-size:15px">${h(siguiente.campo)} = ${h(siguiente.valor)}</span>` : `${h(TIPOS_DEF[siguiente.tipo].toLowerCase())} <span class="mono" style="font-size:15px">${h(siguiente.valor)}</span>`}?</p>
@@ -1958,6 +1961,7 @@ function vistaParametrizacion() {
     ${stat('Sin propuesta', sinProp, 'hay que definirlos')}
   </div>
   <div class="card" style="margin-top:12px">${barra([['Confirmados', confirmados, 'var(--s3)'], ['Con propuesta', conProp, 'var(--s4)'], ['Sin propuesta', sinProp, 'var(--base)']])}</div>
+  ${avisoDifieren}
   ${guiada}
   <div class="card">
     <div class="card-h"><h2>Todas las definiciones</h2></div>
@@ -2707,6 +2711,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'rk-exportar-csv') descargarCsv(`hallazgos_riesgos_${S.fechaRef}.csv`, ['Usuario', 'Nombre', 'Pais', 'Bloqueada', 'Regla', 'Tipo', 'Severidad', 'Estado regla', 'Evidencia', 'Uso observado', 'Estado hallazgo', 'Nota', 'Actualizado', 'Por', 'Excepcion', 'Motivo', 'Control mitigante', 'Aprobador', 'Aprobada el', 'Vence', 'Evidencia excepcion', 'Fecha extraccion'],
       S.calc.riesgos.hallazgos.map((x) => { const e = estadoHallazgo(x); return [x.c.bname, x.c.nombre, x.c.pais.join('+'), x.c.bloqueada ? 'Si' : 'No', x.r.nombre, x.r.tipo === 'sod' ? 'SoD' : 'Critica', SEVERIDADES[x.r.severidad], x.r.estado, x.ev.map(([cap, via]) => cap + ': ' + via.join(' / ')).join(' | '), textoUsoHallazgo(x), ESTADOS_HALLAZGO[e.estado], e.nota || '', e.fecha ? e.fecha.slice(0, 10) : '', e.por || '', estadoExcepcion(e), ...['motivo', 'control', 'aprobador', 'aprobado', 'vencimiento', 'evidencia'].map((f) => (e.excepcion || {})[f] || ''), S.fechaRef]; }));
   else if (a === 'q-buscar') { ['qCodigo', 'qCampo', 'qValor'].forEach((id) => { const el = document.getElementById(id); if (el) U[id] = el.value; }); render(); }
+  else if (a === 'p-ver-difieren') { U.pEstado = 'difiere'; U.pUso = 'conuso'; U.pPag = 0; render(); }
   else if (a === 'p-saltar') { U.pSaltados.add(t.dataset.k); render(); }
   else if (a === 'p-sel-pagina') { document.querySelectorAll('[data-psel]').forEach((x) => U.pSel.add(x.dataset.psel)); render(); }
   else if (a === 'p-sel-filtro') { filtrarCatalogo().forEach((x) => U.pSel.add(x.k)); render(); }
