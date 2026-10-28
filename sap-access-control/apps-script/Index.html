@@ -2730,11 +2730,18 @@ const ORDEN_NOMBRES = ['T001W', 'TKA02', 'TVKBZ', 'TVKO', 'T024E', 'T001', 'AGR_
 const ORDEN_CARGA = ['T001', 'T001W', 'TVKO', 'T024E', 'TKA02', 'TVKBZ', 'USR02', 'AGR_USERS', 'USR21', 'ADRP', 'USR05', 'UST04', 'USREFUS', 'AGR_1252', 'AGR_DEFINE', 'AGR_TEXTS', 'AGR_AGRS', 'AGR_FLAGS', 'AGR_PROF', 'AGR_TCODES', 'AGR_1251', 'TSTCT', 'AGR_BUFFI', 'AGR_HIER', 'PB_C_CHIP', 'USOBHASH', 'USO'];
 const fuentePorNombre = (nombre) => { const up = nombre.toUpperCase(); return ORDEN_NOMBRES.find((f) => up.includes(f) || up.includes(f.replace('_', ''))) || (tablaUso(nombre) ? 'USO' : null); };
 function detectarFuente(nombre, archivo) {
+  if (/(^|[^A-Z])ADRC([^A-Z]|$)/i.test(nombre)) return null; // no se usa (ver mensaje en la carga)
   const porNombre = fuentePorNombre(nombre);
   if (porNombre) return porNombre;
-  let mejor = null, p = 1; // al menos 2 encabezados reconocidos
+  // Por encabezados: al menos 2 reconocidos y todas las columnas obligatorias de la tabla.
+  let mejor = null, p = 1;
   for (const f of Object.keys(FUENTES)) {
-    for (const hj of archivo.hojas) { const q = puntaje(f, hj.filas[filaEncabezado(f, hj.filas)] || []); if (q > p) { p = q; mejor = f; } }
+    const oblig = FUENTES[f].campos.filter((c) => c[2]).map((c) => c[0]);
+    for (const hj of archivo.hojas) {
+      const fila = hj.filas[filaEncabezado(f, hj.filas)] || [];
+      const vistos = new Set(fila.map((c) => sugerirCampo(f, txt(c))).filter(Boolean));
+      if (vistos.size > p && oblig.every((c) => vistos.has(c))) { p = vistos.size; mejor = f; }
+    }
   }
   return mejor;
 }
