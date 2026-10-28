@@ -2077,7 +2077,14 @@ function vistaParametrizacion() {
 
   // Confirmaciones que contradicen la propuesta: pueden ser decisiones a propósito o errores (p. ej. una confirmación masiva).
   const difieren = enUso.filter((x) => x.def && x.prop && x.def.pais !== x.prop.pais);
-  const avisoDifieren = difieren.length && U.pEstado !== 'difiere' ? `<div class="aviso warn"><b>${n(difieren.length)} confirmación(es) distintas de la propuesta</b>Revisalas por si alguna quedó mal: ${difieren.slice(0, 6).map((x) => `<span class="mono">${h(x.campo ? x.campo + '=' : '')}${h(x.valor)}</span> → ${h(PAISES[x.def.pais])} (propuesta ${h(PAISES[x.prop.pais])})`).join(' · ')}${difieren.length > 6 ? '…' : ''} <button class="btn mini" data-accion="p-ver-difieren">Ver todas</button></div>` : '';
+  // Las diferencias contra datos de SAP pesan más que contra supuestos o prefijos (donde lo confirmado manda).
+  const ORIGEN_PROP = { maestro: 'dato de SAP', respuesta: 'tu respuesta', prefijo: 'prefijo', supuesto: 'supuesto', nombre: 'nombre' };
+  const linea = (x) => `<span class="mono">${h(x.campo ? x.campo + '=' : '')}${h(x.valor)}</span> → ${h(PAISES[x.def.pais])} <span class="t2">(propuesta ${h(PAISES[x.prop.pais])}, ${h(ORIGEN_PROP[x.prop.o] || x.prop.o)})</span>`;
+  const difSap = difieren.filter((x) => x.prop.o === 'maestro' || x.prop.o === 'nombre'), difOtras = difieren.filter((x) => !difSap.includes(x));
+  const avisoDifieren = difieren.length && U.pEstado !== 'difiere' ? `<div class="aviso ${difSap.length ? 'warn' : ''}"><b>${n(difieren.length)} confirmación(es) distintas de la propuesta</b>
+    ${difSap.length ? `<div><b>Revisar</b> (la propuesta sale de SAP o del nombre del rol): ${difSap.slice(0, 8).map(linea).join(' · ')}${difSap.length > 8 ? '…' : ''}</div>` : ''}
+    ${difOtras.length ? `<div class="t2" style="margin-top:4px">Contra supuestos o prefijos (si lo confirmaste a conciencia, está bien): ${difOtras.slice(0, 8).map(linea).join(' · ')}${difOtras.length > 8 ? '…' : ''}</div>` : ''}
+    <button class="btn mini" data-accion="p-ver-difieren" style="margin-top:6px">Ver todas</button></div>` : '';
   const guiada = siguiente ? `<div class="card" style="border-left:4px solid var(--accent)">
     <div class="card-h"><h2>Revisión guiada <span class="muted peq">(${n(enUso.length - confirmados)} dato(s) en uso sin confirmar)</span></h2></div>
     <p style="margin:0 0 6px">¿A qué país corresponde ${siguiente.campo ? `<b>${h(desc(siguiente))}</b> <span class="mono" style="font-size:15px">${h(siguiente.campo)} = ${h(siguiente.valor)}</span>` : `${h(TIPOS_DEF[siguiente.tipo].toLowerCase())} <span class="mono" style="font-size:15px">${h(siguiente.valor)}</span>`}?</p>
