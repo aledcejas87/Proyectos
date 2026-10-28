@@ -508,7 +508,7 @@ const FUENTES = {
     ayuda: 'SE16N → T001. País (LAND1) de cada sociedad. Es la base para saber de qué país es cada sociedad, organización de ventas y de compras.',
     campos: [
       ['bukrs', 'BUKRS — Sociedad', true, ['bukrs', 'sociedad']],
-      ['land1', 'LAND1 — País', true, ['land1', 'clave de pais', 'clave pais', 'pais', 'cl pais', 'clv pais']],
+      ['land1', 'LAND1 — País', true, ['land1', 'clave de pais', 'clave pais', 'pais', 'cl pais', 'clv pais', 'pais region', 'pais o region', 'clave de pais region', 'clave pais region', 'clave de pais o region', 'pais reg', 'cl pais reg', 'clv pais reg', 'clave pais reg', 'country', 'country region', 'country region key', 'country key']],
       ['nombre', 'BUTXT — Nombre', false, ['butxt', 'nombre de la empresa', 'nombre empresa', 'denominacion', 'nombre']],
     ],
   },
@@ -517,7 +517,7 @@ const FUENTES = {
     ayuda: 'SE16N → T001W. País (LAND1) de cada centro.',
     campos: [
       ['werks', 'WERKS — Centro', true, ['werks', 'centro']],
-      ['land1', 'LAND1 — País', true, ['land1', 'clave de pais', 'clave pais', 'pais', 'cl pais', 'clv pais']],
+      ['land1', 'LAND1 — País', true, ['land1', 'clave de pais', 'clave pais', 'pais', 'cl pais', 'clv pais', 'pais region', 'pais o region', 'clave de pais region', 'clave pais region', 'clave de pais o region', 'pais reg', 'cl pais reg', 'clv pais reg', 'clave pais reg', 'country', 'country region', 'country region key', 'country key']],
       ['nombre', 'NAME1 — Nombre', false, ['name1', 'nombre 1', 'nombre']],
     ],
   },
@@ -687,11 +687,24 @@ function armarTabla(hoja, fe) {
   const filas = hoja.filas.slice(fe + 1).filter((f) => f && f.some((c) => txt(c) !== ''));
   return { enc, filas, fe };
 }
-function mapeoSugerido(fuente, enc) {
+function mapeoSugerido(fuente, enc, filas) {
   const m = {}, usados = new Set();
   for (const e of enc) { if (esSensible(e)) continue; const c = sugerirCampo(fuente, e); if (c && !usados.has(c)) { m[e] = c; usados.add(c); } }
+  // País sin encabezado reconocible: se busca la columna con códigos de país de 2 letras (UY, CL, AR…).
+  if (filas && FUENTES[fuente].campos.some((c) => c[0] === 'land1') && !usados.has('land1')) {
+    let mejor = -1, pm = 0;
+    enc.forEach((e, i) => {
+      if (m[e]) return;
+      const vals = filas.slice(0, 500).map((f) => txt(f[i]).toUpperCase()).filter(Boolean);
+      if (!vals.length) return;
+      const ok = vals.filter((v) => /^[A-Z]{2}$/.test(v)).length / vals.length;
+      if (ok > 0.9 && vals.some((v) => ['UY', 'CL', 'AR'].includes(v)) && ok > pm) { pm = ok; mejor = i; }
+    });
+    if (mejor >= 0) m[enc[mejor]] = 'land1';
+  }
   return m;
 }
+const mapeoDe = (fuente, tabla) => mapeoSugerido(fuente, tabla.enc, tabla.filas);
 
 /** Convierte filas en registros. No toca el estado global. */
 function procesar(fuente, tabla, mapeo) {
@@ -2704,7 +2717,7 @@ async function elegirArchivo(fuente, file, agregar = false) {
     const punt = a.hojas.map((x) => puntaje(fuente, x.filas[filaEncabezado(fuente, x.filas)] || []));
     const hoja = punt.indexOf(Math.max(...punt));
     const fe = filaEncabezado(fuente, a.hojas[hoja].filas);
-    S.pendiente = { fuente, archivo: a, hoja, fe, agregar, mapeo: mapeoSugerido(fuente, armarTabla(a.hojas[hoja], fe).enc) };
+    S.pendiente = { fuente, archivo: a, hoja, fe, agregar, mapeo: mapeoDe(fuente, armarTabla(a.hojas[hoja], fe)) };
     validarPendiente();
   } catch (e) {
     S.pendiente = { fuente, archivo: { nombre: file.name, hojas: [{ filas: [] }], sha: '' }, hoja: 0, fe: 0, mapeo: {}, error: e.message || String(e) };
@@ -2747,7 +2760,7 @@ async function cargarVarios(files) {
       const punt = a.hojas.map((x) => puntaje(f, x.filas[filaEncabezado(f, x.filas)] || []));
       const hoja = punt.indexOf(Math.max(...punt));
       const fe = filaEncabezado(f, a.hojas[hoja].filas);
-      const mapeo = mapeoSugerido(f, armarTabla(a.hojas[hoja], fe).enc);
+      const mapeo = mapeoDe(f, armarTabla(a.hojas[hoja], fe));
       Object.assign(item, { hoja, fe, mapeo });
       const r = procesar(f, armarTabla(a.hojas[hoja], fe), mapeo);
       // Varias partes de la misma tabla en un mismo lote (p. ej. AGR_1251_1, _2, _3) se suman.
@@ -2783,6 +2796,8 @@ function confirmarPendiente(redibujar = true) {
   } else {
     S.datos[P.fuente] = { regs: r.regs, meta: { archivo: P.archivo.nombre, sha: P.archivo.sha, leidas: r.leidas, rechazadas: r.rechazadas, duplicadas: r.duplicadas, adv: [...P.archivo.adv, ...r.adv], partes: 1, cargado: new Date().toLocaleString('es-UY') } };
   }
+  // Si vino de "Revisar columnas" en la carga múltiple, se actualiza esa fila del resultado.
+  if (P.loteIdx != null && S.lote[P.loteIdx]) Object.assign(S.lote[P.loteIdx], { ok: true, msg: '', fuente: P.fuente, filas: S.datos[P.fuente].regs.length, archivo: null });
   S.pendiente = null;
   if (redibujar) recalcular();
 }
@@ -2824,7 +2839,7 @@ document.addEventListener('click', (e) => {
     const x = S.lote[+t.dataset.revisarLote];
     const f = x.fuente || 'USR02';
     const hoja = x.hoja || 0, fe = x.fe != null ? x.fe : filaEncabezado(f, x.archivo.hojas[hoja].filas);
-    S.pendiente = { fuente: f, archivo: x.archivo, hoja, fe, mapeo: x.mapeo || mapeoSugerido(f, armarTabla(x.archivo.hojas[hoja], fe).enc) };
+    S.pendiente = { fuente: f, archivo: x.archivo, hoja, fe, loteIdx: +t.dataset.revisarLote, mapeo: x.mapeo && Object.values(x.mapeo).length ? Object.assign(mapeoDe(f, armarTabla(x.archivo.hojas[hoja], fe)), x.mapeo) : mapeoDe(f, armarTabla(x.archivo.hojas[hoja], fe)) };
     validarPendiente(); render(); document.getElementById('mapeo').scrollIntoView({ behavior: 'smooth' }); return;
   }
   if (t.dataset.rol) return fichaRol(t.dataset.rol);
@@ -2942,9 +2957,9 @@ document.addEventListener('change', async (e) => {
   if (t.id === 'cargaMultiple') { await cargarVarios([...t.files]); t.value = ''; return; }
   if (t.id === 'logoArchivo') { cargarLogo(t.files[0]); t.value = ''; return; }
   if (t.id === 'fechaRef') { S.fechaRef = t.value || hoyISO(); return recalcular(); }
-  if (t.id === 'mapeo-fuente') { const P = S.pendiente; P.fuente = t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
-  if (t.id === 'mapeo-hoja') { const P = S.pendiente; P.hoja = +t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
-  if (t.id === 'mapeo-fe') { const P = S.pendiente; P.fe = Math.max(0, +t.value - 1); P.mapeo = mapeoSugerido(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe).enc); validarPendiente(); return render(); }
+  if (t.id === 'mapeo-fuente') { const P = S.pendiente; P.fuente = t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoDe(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe)); validarPendiente(); return render(); }
+  if (t.id === 'mapeo-hoja') { const P = S.pendiente; P.hoja = +t.value; P.fe = filaEncabezado(P.fuente, P.archivo.hojas[P.hoja].filas); P.mapeo = mapeoDe(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe)); validarPendiente(); return render(); }
+  if (t.id === 'mapeo-fe') { const P = S.pendiente; P.fe = Math.max(0, +t.value - 1); P.mapeo = mapeoDe(P.fuente, armarTabla(P.archivo.hojas[P.hoja], P.fe)); validarPendiente(); return render(); }
   if (t.dataset.mapeo !== undefined) { const P = S.pendiente; if (t.value) P.mapeo[t.dataset.mapeo] = t.value; else delete P.mapeo[t.dataset.mapeo]; P.resultado = null; return render(); }
   if (t.dataset.rolPais !== undefined) { const agr = t.dataset.rolPais, volver = t.dataset.volver; definir([{ tipo: 'rol', campo: '', valor: agr }], t.value); return volver ? fichaToken(volver) : fichaRol(agr); }
   if (t.dataset.pdef) { U.pSel.delete(t.dataset.pdef); return definir([S.calc.catPorK[t.dataset.pdef]], t.value); }
@@ -3113,7 +3128,7 @@ async function cargarDemo() {
     const filas = leerTexto(d[f]);
     const fe = filaEncabezado(f, filas);
     const tabla = armarTabla({ filas }, fe);
-    const r = procesar(f, tabla, mapeoSugerido(f, tabla.enc));
+    const r = procesar(f, tabla, mapeoDe(f, tabla));
     S.datos[f] = { regs: r.regs, meta: { archivo: `demo_${f}.csv`, sha: await sha256(new TextEncoder().encode(d[f])), leidas: r.leidas, rechazadas: r.rechazadas, duplicadas: r.duplicadas, adv: r.adv, cargado: new Date().toLocaleString('es-UY') } };
   }
   S.fechaRef = d.ref;
